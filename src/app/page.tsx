@@ -1,14 +1,38 @@
+import type { Metadata } from "next";
+
+import { ContactInfo } from "@/components/contact/contact-info";
+import { Hero } from "@/components/home/hero";
+import { LunchSpecial } from "@/components/home/lunch-special";
+import { PrivateEventsTeaser } from "@/components/home/private-events-teaser";
+import { SignatureDishes } from "@/components/home/signature-dishes";
+import { Container } from "@/components/layout/container";
+import { RestaurantSchema } from "@/components/restaurant-schema";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { site } from "@/lib/data/site";
+import { pageMetadata } from "@/lib/metadata";
+
+export const metadata: Metadata = pageMetadata({
+  description: `${site.name}: seafood, Russian-style banquets, and a four-course $${site.lunchSpecialPrice} weekday lunch special on Coney Island Avenue, Brooklyn.`,
+  path: "/",
+});
+
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-center gap-6 py-32 px-16 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-black dark:text-zinc-50">
-          Château Capitaine
-        </h1>
-        <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-          A historic venue for unforgettable stays and events. Website coming soon.
-        </p>
-      </main>
-    </div>
+    <>
+      <RestaurantSchema />
+      <Hero />
+      <LunchSpecial />
+      <SignatureDishes />
+      <PrivateEventsTeaser />
+
+      <section>
+        <Container className="py-16 md:py-20">
+          <SectionHeading intro="Open Wednesday through Sunday. Call ahead for larger parties.">
+            Visit us
+          </SectionHeading>
+          <ContactInfo className="mt-10" />
+        </Container>
+      </section>
+    </>
   );
 }
