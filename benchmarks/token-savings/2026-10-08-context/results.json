@@ -1,0 +1,278 @@
+{
+  "started_utc": "2026-10-08T23:13:57.452671+00:00",
+  "cli_version": "codex-cli 0.162.0-alpha.2",
+  "model": "installed CLI default; identical invocation; user config ignored",
+  "prompt": "Perform a read-only maintenance audit of this restaurant project.\nResearch the supplied implementation, then briefly plan the answer, then\nproduce and verify the requested result. Do not edit files, install anything,\nuse network/browser tools, launch other agents, or run build/lint for this audit.\nFind the single source of truth for weekday lunch opening hours. Identify the\nexact property to change to move the lunch closing time to 17:00 while leaving\ndining hours unchanged. Find EVERY source file that directly displays the lunch\nhours through that shared property. The complete relevant source files are supplied below; inspect them, not documentation. This is a closed-context benchmark: DO NOT CALL ANY TOOLS or read local files. No other source file directly displays the shared lunch-hours property.\nReturn only JSON with these keys: source_file, property, current_close, new_close,\ndining_close, days, display_consumers (array of repository-relative file paths).\nAll path strings must use forward slashes. Do not change the actual hours.\n\n\nSOURCE FILE: src/lib/data/site.ts\n```tsx\nexport type Weekday =\n  | \"Monday\"\n  | \"Tuesday\"\n  | \"Wednesday\"\n  | \"Thursday\"\n  | \"Friday\"\n  | \"Saturday\"\n  | \"Sunday\";\n\nexport type OpeningHours = {\n  days: readonly Weekday[];\n  /** 24-hour \"HH:MM\", schema.org compatible */\n  opens: string;\n  closes: string;\n};\n\nconst street = \"2570 Coney Island Ave\";\nconst city = \"Brooklyn\";\nconst state = \"NY\";\nconst zip = \"11223\";\nconst fullAddress = `${street}, ${city}, ${state} ${zip}`;\n\nexport const site = {\n  name: \"Ch\u00e2teau Capitaine\",\n  shortName: \"Ch\u00e2teau Capitaine\",\n  /** Placeholder until the production domain is confirmed; every absolute URL derives from this. */\n  url: \"https://www.chateaucapitaine.com\",\n  tagline: \"Continuing a family tradition of excellence\",\n  description:\n    \"A Brooklyn bar and grill serving seafood, Russian-style banquets, and weekday lunch specials on Coney Island Avenue.\",\n\n  address: {\n    street,\n    city,\n    state,\n    zip,\n    full: fullAddress,\n  },\n\n  /** The building's surveyed position, from OpenStreetMap. */\n  geo: {\n    latitude: 40.594149,\n    longitude: -73.9612306,\n    display: \"40\u00b035\u203239\u2033N 73\u00b057\u203240\u2033W\",\n  },\n\n  phone: {\n    display: \"(718) 339-2800\",\n    href: \"tel:+17183392800\",\n    international: \"+1-718-339-2800\",\n  },\n\n  email: \"chateaudecapitaine4@gmail.com\",\n\n  hours: {\n    dining: {\n      days: [\"Wednesday\", \"Thursday\", \"Friday\", \"Saturday\", \"Sunday\"],\n      opens: \"11:00\",\n      closes: \"23:00\",\n    } satisfies OpeningHours,\n    lunchSpecial: {\n      days: [\"Wednesday\", \"Thursday\", \"Friday\"],\n      opens: \"12:00\",\n      closes: \"16:30\",\n    } satisfies OpeningHours,\n  },\n\n  lunchSpecialPrice: 25,\n\n  social: {\n    facebook: \"https://www.facebook.com/chateaudecapitaine\",\n    instagram: \"https://www.instagram.com/chateau_de_capitaine\",\n    yelp: \"https://www.yelp.com/biz/chateau-de-capitaine-brooklyn-2\",\n  },\n\n  /** Keyless Google Maps embed; no API key or billing account required. */\n  mapEmbedUrl: `https://www.google.com/maps?q=${encodeURIComponent(fullAddress)}&output=embed`,\n  mapLinkUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(\n    `Chateau Capitaine ${fullAddress}`,\n  )}`,\n} as const;\n\nexport const navLinks = [\n  { href: \"/menu\", label: \"Menu\" },\n  { href: \"/private-events\", label: \"Private Events\" },\n  { href: \"/gallery\", label: \"Gallery\" },\n  { href: \"/about\", label: \"About\" },\n  { href: \"/contact\", label: \"Contact\" },\n] as const;\n\n/** Secondary links, footer only, matching how the old site treated testimonials. */\nexport const footerLinks = [\n  { href: \"/testimonials\", label: \"Testimonials\" },\n] as const;\n\nconst SHORT_DAY: Record<Weekday, string> = {\n  Monday: \"Mon\",\n  Tuesday: \"Tue\",\n  Wednesday: \"Wed\",\n  Thursday: \"Thu\",\n  Friday: \"Fri\",\n  Saturday: \"Sat\",\n  Sunday: \"Sun\",\n};\n\nfunction formatTime(time: string): string {\n  const [rawHour, rawMinute] = time.split(\":\").map(Number);\n  const period = rawHour >= 12 ? \"pm\" : \"am\";\n  const hour = rawHour % 12 || 12;\n  return rawMinute === 0\n    ? `${hour}${period}`\n    : `${hour}:${String(rawMinute).padStart(2, \"0\")}${period}`;\n}\n\n/** \"Wed to Sun, 11am to 11pm\" */\nexport function formatHours(hours: OpeningHours): string {\n  const first = SHORT_DAY[hours.days[0]];\n  const last = SHORT_DAY[hours.days[hours.days.length - 1]];\n  const range = hours.days.length === 1 ? first : `${first} to ${last}`;\n  return `${range}, ${formatTime(hours.opens)} to ${formatTime(hours.closes)}`;\n}\n\n```\n\nSOURCE FILE: src/app/menu/page.tsx\n```tsx\nimport type { Metadata } from \"next\";\n\nimport { Container } from \"@/components/layout/container\";\nimport { MenuSection } from \"@/components/menu/menu-section\";\nimport { CallCta } from \"@/components/ui/call-cta\";\nimport { CtaLink } from \"@/components/ui/cta-link\";\nimport { Eyebrow } from \"@/components/ui/eyebrow\";\nimport { PageHeader } from \"@/components/ui/page-header\";\nimport { SectionIndex } from \"@/components/ui/section-index\";\nimport {\n  getLunchSpecialCourses,\n  getMenuCategories,\n  menuNotes,\n} from \"@/lib/data/menu\";\nimport { formatHours, site } from \"@/lib/data/site\";\nimport { pageMetadata } from \"@/lib/metadata\";\n\nexport const metadata: Metadata = pageMetadata({\n  title: `Seafood & Russian Menu, $${site.lunchSpecialPrice} Lunch`,\n  description: `Seafood, salads, soups, dough dishes, kebabs, and entr\u00e9es, plus the four-course $${site.lunchSpecialPrice} weekday lunch special at Ch\u00e2teau Capitaine in Brooklyn.`,\n  path: \"/menu\",\n});\n\nexport default function MenuPage() {\n  const categories = getMenuCategories();\n  const lunchCourses = getLunchSpecialCourses();\n\n  return (\n    <Container className=\"pb-20 pt-14 md:pb-28 md:pt-20\">\n      <PageHeader\n        eyebrow={formatHours(site.hours.dining)}\n        title=\"Menu\"\n        intro={\n          <>\n            Seafood from the raw bar to the grill, the Russian dishes Chef Alik\n            passed down, and steaks cut to order. A few prices change with the\n            season, and we&rsquo;ll always tell you before you order.\n          </>\n        }\n      />\n\n      <section\n        id=\"lunch-special\"\n        className=\"mt-16 bg-ink-800 px-6 py-10 sm:px-10 sm:py-12 md:mt-20\"\n      >\n        <div className=\"flex flex-wrap items-end justify-between gap-x-8 gap-y-6\">\n          <div>\n            <h2 className=\"font-serif text-2xl tracking-tight text-ivory sm:text-3xl\">\n              Lunch special\n            </h2>\n            <p className=\"mt-2 leading-7 text-ivory-muted\">\n              Four courses. Choose one from each.\n            </p>\n          </div>\n          <div className=\"sm:text-right\">\n            <p className=\"font-serif text-5xl leading-none tabular-nums text-gold\">\n              ${site.lunchSpecialPrice}\n            </p>\n            <Eyebrow className=\"mt-3\">\n              {formatHours(site.hours.lunchSpecial)}\n            </Eyebrow>\n          </div>\n        </div>\n\n        <div className=\"mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-4\">\n          {lunchCourses.map((course) => (\n            <div key={course.label}>\n              <Eyebrow as=\"h3\">{course.label}</Eyebrow>\n              <ul className=\"mt-4 space-y-2 text-sm leading-6 text-ivory\">\n                {course.options.map((option) => (\n                  <li key={option}>{option}</li>\n                ))}\n              </ul>\n            </div>\n          ))}\n        </div>\n      </section>\n\n      <div className=\"mt-16 md:mt-20 lg:grid lg:grid-cols-12 lg:gap-12\">\n        <SectionIndex\n          label=\"Menu sections\"\n          items={categories.map((category) => ({\n            id: category.id,\n            label: category.name,\n          }))}\n          className=\"lg:col-span-3\"\n        />\n\n        <div className=\"mt-10 divide-y divide-ivory/10 lg:col-span-9 lg:mt-0\">\n          {categories.map((category) => (\n            <MenuSection key={category.id} category={category} />\n          ))}\n\n          <section className=\"pt-12\">\n            <h2 className=\"sr-only\">Dining policies</h2>\n            <ul className=\"space-y-2 text-sm leading-6 text-ivory-muted\">\n              {menuNotes.map((note) => (\n                <li key={note}>{note}</li>\n              ))}\n            </ul>\n            <div className=\"mt-10 flex flex-wrap gap-3\">\n              <CallCta />\n              <CtaLink href=\"/private-events\" variant=\"secondary\">\n                See banquet menus\n              </CtaLink>\n            </div>\n          </section>\n        </div>\n      </div>\n    </Container>\n  );\n}\n\n```\n\nSOURCE FILE: src/components/contact/contact-info.tsx\n```tsx\nimport { Eyebrow } from \"@/components/ui/eyebrow\";\nimport { formatHours, site } from \"@/lib/data/site\";\n\nconst linkClasses =\n  \"mt-4 inline-flex min-h-11 items-center font-semibold text-gold transition-colors hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold\";\n\nexport function ContactInfo({\n  columns = 2,\n  className = \"\",\n}: {\n  columns?: 1 | 2;\n  className?: string;\n}) {\n  return (\n    <div\n      className={`grid gap-10 ${columns === 2 ? \"sm:grid-cols-2\" : \"\"} ${className}`}\n    >\n      <div>\n        <Eyebrow as=\"h3\">Find us</Eyebrow>\n        <address className=\"mt-4 text-lg not-italic leading-8 text-ivory\">\n          <span className=\"block\">{site.address.street}</span>\n          <span className=\"block\">\n            {site.address.city}, {site.address.state} {site.address.zip}\n          </span>\n        </address>\n        <a\n          href={site.mapLinkUrl}\n          target=\"_blank\"\n          rel=\"noreferrer\"\n          className={linkClasses}\n        >\n          Get directions\n        </a>\n      </div>\n\n      <div>\n        <Eyebrow as=\"h3\">Hours</Eyebrow>\n        <dl className=\"mt-4 space-y-4 leading-7 text-ivory-muted\">\n          <div>\n            <dt className=\"text-lg text-ivory\">Dining</dt>\n            <dd>{formatHours(site.hours.dining)}</dd>\n          </div>\n          <div>\n            <dt className=\"text-lg text-ivory\">Lunch special</dt>\n            <dd>{formatHours(site.hours.lunchSpecial)}</dd>\n          </div>\n        </dl>\n        <a href={site.phone.href} className={`${linkClasses} tabular-nums`}>\n          {site.phone.display}\n        </a>\n      </div>\n    </div>\n  );\n}\n\n```\n\nSOURCE FILE: src/components/home/lunch-special.tsx\n```tsx\nimport { Container } from \"@/components/layout/container\";\nimport { CtaLink } from \"@/components/ui/cta-link\";\nimport { Eyebrow } from \"@/components/ui/eyebrow\";\nimport { getLunchSpecialCourses } from \"@/lib/data/menu\";\nimport { formatHours, site } from \"@/lib/data/site\";\n\nfunction summarize(options: string[]): string {\n  const shown = options.slice(0, 3).join(\", \");\n  const remaining = options.length - 3;\n  return remaining > 0 ? `${shown}, and ${remaining} more` : shown;\n}\n\n/**\n * Framed like a printed carte: the one place on the site with brass rules, and\n * so the one place course labels stay in gold serif.\n */\nexport function LunchSpecial() {\n  const courses = getLunchSpecialCourses();\n\n  return (\n    <section>\n      <Container className=\"py-16 md:py-20\">\n        <div className=\"mx-auto max-w-5xl border border-gold/60 p-1.5\">\n          <div className=\"border border-gold/30 px-6 py-14 text-center sm:px-12 sm:py-20\">\n            <Eyebrow>Lunch special</Eyebrow>\n            <h2 className=\"mt-5 font-serif text-4xl leading-display tracking-tight text-ivory sm:text-5xl\">\n              Four courses for{\" \"}\n              <span className=\"italic text-gold\">\n                ${site.lunchSpecialPrice}\n              </span>\n            </h2>\n            <p className=\"mt-5 text-ivory-muted\">\n              {formatHours(site.hours.lunchSpecial)}. One from each course.\n            </p>\n\n            <dl className=\"mt-14 grid gap-y-10 sm:grid-cols-2 sm:gap-x-8 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-gold/20\">\n              {courses.map((course) => (\n                <div key={course.label} className=\"lg:px-6\">\n                  <dt className=\"font-serif text-xl text-gold\">\n                    {course.label}\n                  </dt>\n                  <dd className=\"mt-3 text-sm leading-6 text-ivory-muted\">\n                    {summarize(course.options)}\n                  </dd>\n                </div>\n              ))}\n            </dl>\n\n            <CtaLink\n              href=\"/menu#lunch-special\"\n              variant=\"secondary\"\n              className=\"mt-14\"\n            >\n              Full lunch menu\n            </CtaLink>\n          </div>\n        </div>\n      </Container>\n    </section>\n  );\n}\n\n```\n\nSOURCE FILE: src/components/layout/footer.tsx\n```tsx\nimport Link from \"next/link\";\n\nimport { Container } from \"@/components/layout/container\";\nimport { Eyebrow } from \"@/components/ui/eyebrow\";\nimport { LogoMark } from \"@/components/ui/logo-mark\";\nimport { footerLinks, formatHours, navLinks, site } from \"@/lib/data/site\";\n\nconst socialLinks = [\n  { href: site.social.facebook, label: \"Facebook\" },\n  { href: site.social.instagram, label: \"Instagram\" },\n  { href: site.social.yelp, label: \"Yelp\" },\n];\n\nconst linkClasses =\n  \"inline-flex min-h-9 items-center text-ivory-muted transition-colors hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold\";\n\nexport function Footer() {\n  return (\n    <footer className=\"border-t border-gold/20 bg-ink-950\">\n      <Container className=\"py-16 md:py-20\">\n        <div className=\"grid gap-12 sm:grid-cols-2 lg:grid-cols-12\">\n          <div className=\"lg:col-span-5\">\n            <LogoMark className=\"h-16 w-auto text-gold\" />\n            <p\n              translate=\"no\"\n              className=\"mt-5 font-serif text-xl uppercase tracking-caps text-ivory\"\n            >\n              {site.name}\n            </p>\n            <address className=\"mt-5 text-sm not-italic leading-6 text-ivory-muted\">\n              <span className=\"block\">{site.address.street}</span>\n              <span className=\"block\">\n                {site.address.city}, {site.address.state} {site.address.zip}\n              </span>\n            </address>\n            <a\n              href={site.phone.href}\n              className=\"mt-2 inline-flex min-h-11 items-center font-semibold tabular-nums text-gold transition-colors hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold\"\n            >\n              {site.phone.display}\n            </a>\n          </div>\n\n          <div className=\"lg:col-span-3\">\n            <Eyebrow as=\"h2\">Hours</Eyebrow>\n            <dl className=\"mt-5 space-y-3 text-sm leading-6 text-ivory-muted\">\n              <div>\n                <dt className=\"text-ivory\">Dining</dt>\n                <dd>{formatHours(site.hours.dining)}</dd>\n              </div>\n              <div>\n                <dt className=\"text-ivory\">Lunch special</dt>\n                <dd>{formatHours(site.hours.lunchSpecial)}</dd>\n              </div>\n            </dl>\n          </div>\n\n          <nav aria-label=\"Footer\" className=\"sm:col-span-2 lg:col-span-4\">\n            <Eyebrow as=\"h2\">Explore</Eyebrow>\n            <ul className=\"mt-4 grid grid-cols-2 gap-x-6 text-sm\">\n              {[...navLinks, ...footerLinks].map((link) => (\n                <li key={link.href}>\n                  <Link href={link.href} className={linkClasses}>\n                    {link.label}\n                  </Link>\n                </li>\n              ))}\n            </ul>\n          </nav>\n        </div>\n\n        <div className=\"mt-14 flex flex-col gap-4 border-t border-ivory/10 pt-6 sm:flex-row sm:items-center sm:justify-between\">\n          <ul className=\"flex gap-6 text-sm\">\n            {socialLinks.map((link) => (\n              <li key={link.label}>\n                <a\n                  href={link.href}\n                  target=\"_blank\"\n                  rel=\"noreferrer\"\n                  className={linkClasses}\n                >\n                  {link.label}\n                </a>\n              </li>\n            ))}\n          </ul>\n          <p className=\"text-sm text-ivory-muted\">\n            \u00a9 {new Date().getFullYear()} {site.name}\n          </p>\n        </div>\n      </Container>\n    </footer>\n  );\n}\n\n```",
+  "expected": {
+    "source_file": "src/lib/data/site.ts",
+    "property": "site.hours.lunchSpecial.closes",
+    "current_close": "16:30",
+    "new_close": "17:00",
+    "dining_close": "23:00",
+    "days": [
+      "Wednesday",
+      "Thursday",
+      "Friday"
+    ],
+    "display_consumers": [
+      "src/app/menu/page.tsx",
+      "src/components/contact/contact-info.tsx",
+      "src/components/home/lunch-special.tsx",
+      "src/components/layout/footer.tsx"
+    ]
+  },
+  "order": [
+    [
+      "current",
+      1
+    ],
+    [
+      "current",
+      3
+    ],
+    [
+      "legacy",
+      3
+    ],
+    [
+      "current",
+      2
+    ],
+    [
+      "legacy",
+      1
+    ],
+    [
+      "legacy",
+      2
+    ]
+  ],
+  "runs": [
+    {
+      "label": "current-1",
+      "exit_code": 0,
+      "seconds": 8.93,
+      "accepted": true,
+      "answer": {
+        "source_file": "src/lib/data/site.ts",
+        "property": "site.hours.lunchSpecial.closes",
+        "current_close": "16:30",
+        "new_close": "17:00",
+        "dining_close": "23:00",
+        "days": [
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "display_consumers": [
+          "src/app/menu/page.tsx",
+          "src/components/contact/contact-info.tsx",
+          "src/components/home/lunch-special.tsx",
+          "src/components/layout/footer.tsx"
+        ]
+      },
+      "blocked_commands": 0,
+      "usage": [
+        {
+          "input_tokens": 21257,
+          "cached_input_tokens": 12544,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 143,
+          "reasoning_output_tokens": 18
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "current"
+    },
+    {
+      "label": "current-3",
+      "exit_code": 0,
+      "seconds": 5.61,
+      "accepted": true,
+      "answer": {
+        "source_file": "src/lib/data/site.ts",
+        "property": "site.hours.lunchSpecial.closes",
+        "current_close": "16:30",
+        "new_close": "17:00",
+        "dining_close": "23:00",
+        "days": [
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "display_consumers": [
+          "src/app/menu/page.tsx",
+          "src/components/contact/contact-info.tsx",
+          "src/components/home/lunch-special.tsx",
+          "src/components/layout/footer.tsx"
+        ]
+      },
+      "blocked_commands": 0,
+      "usage": [
+        {
+          "input_tokens": 19533,
+          "cached_input_tokens": 12544,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 135,
+          "reasoning_output_tokens": 10
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "current"
+    },
+    {
+      "label": "legacy-3",
+      "exit_code": 0,
+      "seconds": 6.46,
+      "accepted": true,
+      "answer": {
+        "source_file": "src/lib/data/site.ts",
+        "property": "site.hours.lunchSpecial.closes",
+        "current_close": "16:30",
+        "new_close": "17:00",
+        "dining_close": "23:00",
+        "days": [
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "display_consumers": [
+          "src/app/menu/page.tsx",
+          "src/components/contact/contact-info.tsx",
+          "src/components/home/lunch-special.tsx",
+          "src/components/layout/footer.tsx"
+        ]
+      },
+      "blocked_commands": 0,
+      "usage": [
+        {
+          "input_tokens": 18972,
+          "cached_input_tokens": 12544,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 135,
+          "reasoning_output_tokens": 10
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "legacy"
+    },
+    {
+      "label": "current-2",
+      "exit_code": 0,
+      "seconds": 6.97,
+      "accepted": true,
+      "answer": {
+        "source_file": "src/lib/data/site.ts",
+        "property": "site.hours.lunchSpecial.closes",
+        "current_close": "16:30",
+        "new_close": "17:00",
+        "dining_close": "23:00",
+        "days": [
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "display_consumers": [
+          "src/app/menu/page.tsx",
+          "src/components/contact/contact-info.tsx",
+          "src/components/home/lunch-special.tsx",
+          "src/components/layout/footer.tsx"
+        ]
+      },
+      "blocked_commands": 0,
+      "usage": [
+        {
+          "input_tokens": 21257,
+          "cached_input_tokens": 12544,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 142,
+          "reasoning_output_tokens": 17
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "current"
+    },
+    {
+      "label": "legacy-1",
+      "exit_code": 0,
+      "seconds": 5.24,
+      "accepted": true,
+      "answer": {
+        "source_file": "src/lib/data/site.ts",
+        "property": "site.hours.lunchSpecial.closes",
+        "current_close": "16:30",
+        "new_close": "17:00",
+        "dining_close": "23:00",
+        "days": [
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "display_consumers": [
+          "src/app/menu/page.tsx",
+          "src/components/contact/contact-info.tsx",
+          "src/components/home/lunch-special.tsx",
+          "src/components/layout/footer.tsx"
+        ]
+      },
+      "blocked_commands": 0,
+      "usage": [
+        {
+          "input_tokens": 18972,
+          "cached_input_tokens": 12544,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 135,
+          "reasoning_output_tokens": 10
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "legacy"
+    },
+    {
+      "label": "legacy-2",
+      "exit_code": 0,
+      "seconds": 5.56,
+      "accepted": true,
+      "answer": {
+        "source_file": "src/lib/data/site.ts",
+        "property": "site.hours.lunchSpecial.closes",
+        "current_close": "16:30",
+        "new_close": "17:00",
+        "dining_close": "23:00",
+        "days": [
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "display_consumers": [
+          "src/app/menu/page.tsx",
+          "src/components/contact/contact-info.tsx",
+          "src/components/home/lunch-special.tsx",
+          "src/components/layout/footer.tsx"
+        ]
+      },
+      "blocked_commands": 0,
+      "usage": [
+        {
+          "input_tokens": 18972,
+          "cached_input_tokens": 12544,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 143,
+          "reasoning_output_tokens": 18
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "legacy"
+    }
+  ],
+  "limitations": [
+    "One read-only task, three repeats per configuration; exploratory only.",
+    "Legacy guidance reconstructed from Git HEAD, not the lost uncommitted collection.",
+    "Same current application source in both arms; no Claude runtime comparison.",
+    "Cache temperature uncontrolled; use reported cached input separately.",
+    "Source supplied in prompt; tool-free audit measures instruction overhead, not a full coding workflow.",
+    "No implementation, build, or browser-quality claim."
+  ],
+  "fixtures": "C:\\Users\\anthony\\AppData\\Local\\Temp\\codex-token-pilot-fgc449pl",
+  "application_source_unchanged": true
+}

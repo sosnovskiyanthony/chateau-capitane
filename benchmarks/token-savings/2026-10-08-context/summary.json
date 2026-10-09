@@ -1,0 +1,27 @@
+{
+  "legacy": {
+    "input_tokens": 56916,
+    "cached_input_tokens": 37632,
+    "output_tokens": 413,
+    "reasoning_output_tokens": 38,
+    "runs": 3,
+    "accepted": 3,
+    "total_tokens": 57329,
+    "tokens_per_accepted": 19109.666666666668,
+    "uncached_input_tokens": 19284,
+    "mean_seconds": 5.753333333333333
+  },
+  "current": {
+    "input_tokens": 62047,
+    "cached_input_tokens": 37632,
+    "output_tokens": 420,
+    "reasoning_output_tokens": 45,
+    "runs": 3,
+    "accepted": 3,
+    "total_tokens": 62467,
+    "tokens_per_accepted": 20822.333333333332,
+    "uncached_input_tokens": 24415,
+    "mean_seconds": 7.169999999999999
+  },
+  "change_percent": 8.962305290516138
+}

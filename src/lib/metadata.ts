@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 
 import { site } from "@/lib/data/site";
 
-export const defaultTitle = `${site.name} — Brooklyn Bar & Grill`;
+export const defaultTitle = `${site.name} | Brooklyn Bar & Grill`;
 
 /** Served by `src/app/opengraph-image.tsx`. */
 export const shareImage = {
   url: "/opengraph-image",
+  type: "image/png",
   width: 1200,
   height: 630,
-  alt: `${site.name} — seafood and Russian-style banquets on Coney Island Avenue, Brooklyn`,
+  alt: `${site.name}, seafood and Russian-style banquets on Coney Island Avenue in Brooklyn`,
 };
 
 // Next replaces a parent's `openGraph` wholesale (dropping the inherited image) and the title template skips `og:title`, so set every field here.

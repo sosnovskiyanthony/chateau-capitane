@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BookCta } from "@/components/ui/book-cta";
 
 type NavLink = { readonly href: string; readonly label: string };
 
@@ -13,6 +15,7 @@ export function MobileNavToggle({
   phone: { display: string; href: string };
 }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -24,14 +27,14 @@ export function MobileNavToggle({
   }, [open]);
 
   return (
-    <div className="md:hidden">
+    <div>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls="mobile-nav"
         aria-label={open ? "Close menu" : "Open menu"}
-        className="-mr-2 inline-flex items-center justify-center rounded p-2 text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
+        className="-mr-2 inline-flex size-11 items-center justify-center text-ivory focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
       >
         <svg
           width="24"
@@ -61,27 +64,34 @@ export function MobileNavToggle({
       <div
         id="mobile-nav"
         hidden={!open}
-        className="absolute inset-x-0 top-full border-b border-stone-200 bg-stone-50 shadow-sm"
+        className="absolute inset-x-0 top-full border-b border-gold/25 bg-ink-900"
       >
-        <nav aria-label="Mobile" className="px-6 py-4">
+        <nav aria-label="Mobile" className="px-6 pb-6 pt-2 sm:px-8">
+          <BookCta className="mb-2 mt-4 w-full" />
           <ul className="flex flex-col">
-            {links.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  className="block border-b border-stone-200 py-3 font-serif text-lg text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
-                >
-                  {link.label}
-                </Link>
-              </li>
-            ))}
+            {links.map((link) => {
+              const current = pathname === link.href;
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    onClick={() => setOpen(false)}
+                    aria-current={current ? "page" : undefined}
+                    className={`flex min-h-14 items-center border-b border-ivory/10 font-serif text-2xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gold ${
+                      current ? "text-gold" : "text-ivory"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
           <a
             href={phone.href}
-            className="mt-4 inline-block font-medium text-wine-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
+            className="mt-4 inline-flex min-h-11 items-center font-semibold text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
           >
-            {phone.display}
+            Call {phone.display}
           </a>
         </nav>
       </div>

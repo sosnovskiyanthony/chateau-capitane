@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { Container } from "@/components/layout/container";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { LogoMark } from "@/components/ui/logo-mark";
 import { footerLinks, formatHours, navLinks, site } from "@/lib/data/site";
 
 const socialLinks = [
@@ -9,74 +11,80 @@ const socialLinks = [
   { href: site.social.yelp, label: "Yelp" },
 ];
 
+const linkClasses =
+  "inline-flex min-h-9 items-center text-ivory-muted transition-colors hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
+
 export function Footer() {
   return (
-    <footer className="mt-24 border-t border-stone-200 bg-stone-100">
-      <Container className="py-14">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <p className="font-serif text-lg text-stone-900">{site.name}</p>
-            <address className="mt-3 space-y-1 text-sm not-italic text-stone-600">
+    <footer className="border-t border-gold/20 bg-ink-950">
+      <Container className="py-16 md:py-20">
+        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-12">
+          <div className="lg:col-span-5">
+            <LogoMark className="h-16 w-auto text-gold" />
+            <p
+              translate="no"
+              className="mt-5 font-serif text-xl uppercase tracking-caps text-ivory"
+            >
+              {site.name}
+            </p>
+            <address className="mt-5 text-sm not-italic leading-6 text-ivory-muted">
               <span className="block">{site.address.street}</span>
               <span className="block">
                 {site.address.city}, {site.address.state} {site.address.zip}
               </span>
-              <a
-                href={site.phone.href}
-                className="mt-2 inline-block text-wine-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
-              >
-                {site.phone.display}
-              </a>
             </address>
+            <a
+              href={site.phone.href}
+              className="mt-2 inline-flex min-h-11 items-center font-semibold tabular-nums text-gold transition-colors hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              {site.phone.display}
+            </a>
           </div>
 
-          <div>
-            <h2 className="font-serif text-lg text-stone-900">Hours</h2>
-            <dl className="mt-3 space-y-2 text-sm text-stone-600">
+          <div className="lg:col-span-3">
+            <Eyebrow as="h2">Hours</Eyebrow>
+            <dl className="mt-5 space-y-3 text-sm leading-6 text-ivory-muted">
               <div>
-                <dt className="inline">Dining: </dt>
-                <dd className="inline">{formatHours(site.hours.dining)}</dd>
+                <dt className="text-ivory">Dining</dt>
+                <dd>{formatHours(site.hours.dining)}</dd>
               </div>
               <div>
-                <dt className="inline">Lunch special: </dt>
-                <dd className="inline">{formatHours(site.hours.lunchSpecial)}</dd>
+                <dt className="text-ivory">Lunch special</dt>
+                <dd>{formatHours(site.hours.lunchSpecial)}</dd>
               </div>
             </dl>
           </div>
 
-          <div className="sm:col-span-2 lg:col-span-1">
-            <h2 className="font-serif text-lg text-stone-900">Explore</h2>
-            <ul className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm lg:grid-cols-1">
+          <nav aria-label="Footer" className="sm:col-span-2 lg:col-span-4">
+            <Eyebrow as="h2">Explore</Eyebrow>
+            <ul className="mt-4 grid grid-cols-2 gap-x-6 text-sm">
               {[...navLinks, ...footerLinks].map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-stone-600 underline-offset-4 hover:text-wine-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
-                  >
+                  <Link href={link.href} className={linkClasses}>
                     {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
-          </div>
+          </nav>
         </div>
 
-        <div className="mt-12 flex flex-col gap-4 border-t border-stone-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <ul className="flex gap-5 text-sm">
+        <div className="mt-14 flex flex-col gap-4 border-t border-ivory/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <ul className="flex gap-6 text-sm">
             {socialLinks.map((link) => (
               <li key={link.label}>
                 <a
                   href={link.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-stone-600 underline-offset-4 hover:text-wine-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
+                  className={linkClasses}
                 >
                   {link.label}
                 </a>
               </li>
             ))}
           </ul>
-          <p className="text-sm text-stone-500">
+          <p className="text-sm text-ivory-muted">
             © {new Date().getFullYear()} {site.name}
           </p>
         </div>

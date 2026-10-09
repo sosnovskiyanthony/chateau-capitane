@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 import { PlaceholderImage } from "@/components/ui/placeholder-image";
 import type { Photo } from "@/lib/data/gallery";
 
@@ -11,17 +9,11 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
           key={photo.id}
           className={photo.feature ? "sm:col-span-2" : undefined}
         >
-          {photo.src ? (
-            <Image
-              src={photo.src}
-              alt={photo.alt}
-              width={1200}
-              height={900}
-              className={`w-full object-cover ${photo.aspect}`}
-            />
-          ) : (
-            <PlaceholderImage label={photo.alt} aspect={photo.aspect} />
-          )}
+          <PlaceholderImage
+            label={photo.alt}
+            aspect={photo.aspect}
+            src={photo.src}
+          />
         </li>
       ))}
     </ul>

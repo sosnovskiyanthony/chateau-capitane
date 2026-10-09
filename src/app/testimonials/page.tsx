@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Container } from "@/components/layout/container";
 import { TestimonialCard } from "@/components/testimonials/testimonial-card";
 import { CtaLink } from "@/components/ui/cta-link";
+import { PageHeader } from "@/components/ui/page-header";
 import { getTestimonials, type Testimonial } from "@/lib/data/testimonials";
 import { site } from "@/lib/data/site";
 import { pageMetadata } from "@/lib/metadata";
@@ -37,20 +38,16 @@ export default function TestimonialsPage() {
   const columns = splitIntoColumns(getTestimonials());
 
   return (
-    <Container className="py-16 md:py-20">
-      <header className="max-w-2xl">
-        <h1 className="font-serif text-4xl text-stone-900 sm:text-5xl">
-          What guests say
-        </h1>
-        <p className="mt-6 text-lg leading-8 text-stone-600">
-          Collected from guests who have eaten here and celebrated here. The
-          most recent reviews live on Yelp.
-        </p>
-      </header>
+    <Container className="pb-20 pt-14 md:pb-28 md:pt-20">
+      <PageHeader
+        eyebrow="Testimonials"
+        title="What guests say"
+        intro="Collected from guests who have eaten here and celebrated here. The most recent reviews live on Yelp."
+      />
 
-      <div className="mt-14 grid gap-x-10 gap-y-8 md:grid-cols-2">
+      <div className="mt-16 grid gap-x-12 gap-y-10 md:mt-20 md:grid-cols-2">
         {columns.map((column, index) => (
-          <div key={index} className="space-y-8">
+          <div key={index} className="space-y-10">
             {column.map((testimonial) => (
               <TestimonialCard key={testimonial.id} testimonial={testimonial} />
             ))}
@@ -58,18 +55,16 @@ export default function TestimonialsPage() {
         ))}
       </div>
 
-      <section className="mt-14 border-t border-stone-300 pt-10">
-        <h2 className="font-serif text-2xl text-stone-900">
+      <section className="mt-20 bg-ink-800 px-6 py-10 sm:px-10 sm:py-12 md:mt-24">
+        <h2 className="font-serif text-2xl tracking-tight text-ivory sm:text-3xl">
           Eaten with us recently?
         </h2>
-        <p className="mt-3 max-w-prose leading-7 text-stone-600">
+        <p className="mt-4 max-w-prose leading-7 text-ivory-muted">
           We read everything. Leaving a review on Yelp is the quickest way to
           reach us and anyone deciding where to eat tonight.
         </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <CtaLink href={site.social.yelp} variant="secondary">
-            Write a review on Yelp
-          </CtaLink>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <CtaLink href={site.social.yelp}>Write a review on Yelp</CtaLink>
           <CtaLink href="/contact" variant="secondary">
             Tell us directly
           </CtaLink>

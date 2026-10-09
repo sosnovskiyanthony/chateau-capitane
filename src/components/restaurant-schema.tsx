@@ -1,4 +1,5 @@
 import { site, type OpeningHours } from "@/lib/data/site";
+import { shareImage } from "@/lib/metadata";
 
 function toSpecification(hours: OpeningHours) {
   return {
@@ -35,6 +36,14 @@ export function RestaurantSchema() {
       postalCode: site.address.zip,
       addressCountry: "US",
     },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: site.geo.latitude,
+      longitude: site.geo.longitude,
+    },
+    // Until real photography exists, the generated share card stands in as the image.
+    image: `${site.url}${shareImage.url}`,
+    logo: `${site.url}/apple-icon`,
     // Lunch-special hours fall inside dining hours; listing them here would read as separate opening hours.
     openingHoursSpecification: [toSpecification(site.hours.dining)],
     sameAs: [site.social.facebook, site.social.instagram, site.social.yelp],
@@ -44,7 +53,10 @@ export function RestaurantSchema() {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      // Escaping "<" keeps any future data from closing the script tag early.
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify(schema).replace(/</g, "\\u003c"),
+      }}
     />
   );
 }

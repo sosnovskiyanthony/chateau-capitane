@@ -2,11 +2,17 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 const styles = {
-  primary:
-    "bg-wine-700 text-stone-50 hover:bg-wine-800 focus-visible:outline-wine-700",
+  primary: "bg-gold text-ink-950 hover:bg-gold-bright active:bg-gold-deep",
   secondary:
-    "border border-stone-400 text-stone-800 hover:border-stone-900 hover:text-stone-900 focus-visible:outline-stone-700",
+    "border border-gold/60 text-ivory hover:border-gold hover:text-gold-bright",
 } as const;
+
+export type CtaVariant = keyof typeof styles;
+
+/** Shared with the contact form's submit button so every call to action matches. */
+export function ctaClassName(variant: CtaVariant = "primary"): string {
+  return `inline-flex min-h-12 items-center justify-center whitespace-nowrap px-7 text-xs font-semibold uppercase tracking-caps transition-[background-color,border-color,color,translate] duration-200 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${styles[variant]}`;
+}
 
 export function CtaLink({
   href,
@@ -16,10 +22,10 @@ export function CtaLink({
 }: {
   href: string;
   children: ReactNode;
-  variant?: keyof typeof styles;
+  variant?: CtaVariant;
   className?: string;
 }) {
-  const classes = `inline-flex items-center justify-center px-6 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${styles[variant]} ${className}`;
+  const classes = `${ctaClassName(variant)} ${className}`;
 
   if (href.startsWith("/")) {
     return (

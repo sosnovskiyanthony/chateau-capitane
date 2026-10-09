@@ -1,0 +1,140 @@
+{
+  "started_utc": "2026-10-08T17:56:49.206244+00:00",
+  "cli_version": "codex-cli 0.162.0-alpha.2",
+  "model": "installed CLI default; identical invocation; user config ignored",
+  "prompt": "Perform a read-only maintenance audit of this restaurant project.\nResearch the relevant local implementation, then briefly plan the answer, then\nproduce and verify the requested result. Do not edit files, install anything,\nuse network/browser tools, launch other agents, or run build/lint for this audit.\nFind the single source of truth for weekday lunch opening hours. Identify the\nexact property to change to move the lunch closing time to 17:00 while leaving\ndining hours unchanged. Find EVERY source file that directly displays the lunch\nhours through that shared property. Inspect actual source; do not guess from docs.\nReturn only JSON with these keys: source_file, property, current_close, new_close,\ndining_close, days, display_consumers (array of repository-relative file paths).\nAll path strings must use forward slashes. Do not change the actual hours.\n",
+  "expected": {
+    "source_file": "src/lib/data/site.ts",
+    "property": "site.hours.lunchSpecial.closes",
+    "current_close": "16:30",
+    "new_close": "17:00",
+    "dining_close": "23:00",
+    "days": [
+      "Wednesday",
+      "Thursday",
+      "Friday"
+    ],
+    "display_consumers": [
+      "src/app/menu/page.tsx",
+      "src/components/contact/contact-info.tsx",
+      "src/components/home/lunch-special.tsx",
+      "src/components/layout/footer.tsx"
+    ]
+  },
+  "order": [
+    [
+      "current",
+      1
+    ],
+    [
+      "current",
+      3
+    ],
+    [
+      "legacy",
+      3
+    ],
+    [
+      "current",
+      2
+    ],
+    [
+      "legacy",
+      1
+    ],
+    [
+      "legacy",
+      2
+    ]
+  ],
+  "runs": [
+    {
+      "label": "current-1",
+      "exit_code": 0,
+      "seconds": 22.09,
+      "accepted": false,
+      "answer": {
+        "source_file": null,
+        "property": null,
+        "current_close": null,
+        "new_close": "17:00",
+        "dining_close": null,
+        "days": "Unverified: execution policy blocked all local source inspection commands.",
+        "display_consumers": []
+      },
+      "usage": [
+        {
+          "input_tokens": 116855,
+          "cached_input_tokens": 96384,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 390,
+          "reasoning_output_tokens": 114
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "current"
+    },
+    {
+      "label": "current-3",
+      "exit_code": 0,
+      "seconds": 19.67,
+      "accepted": false,
+      "answer": {
+        "source_file": null,
+        "property": null,
+        "current_close": null,
+        "new_close": "17:00",
+        "dining_close": null,
+        "days": null,
+        "display_consumers": []
+      },
+      "usage": [
+        {
+          "input_tokens": 73530,
+          "cached_input_tokens": 61568,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 359,
+          "reasoning_output_tokens": 66
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "current"
+    },
+    {
+      "label": "legacy-3",
+      "exit_code": 0,
+      "seconds": 19.4,
+      "accepted": false,
+      "answer": {
+        "source_file": null,
+        "property": null,
+        "current_close": null,
+        "new_close": "17:00",
+        "dining_close": null,
+        "days": null,
+        "display_consumers": [],
+        "error": "Local source inspection was blocked by execution policy. The hours and display consumers could not be verified; no files were changed."
+      },
+      "usage": [
+        {
+          "input_tokens": 115169,
+          "cached_input_tokens": 94720,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 349,
+          "reasoning_output_tokens": 53
+        }
+      ],
+      "tool_calls": 0,
+      "configuration": "legacy"
+    }
+  ],
+  "limitations": [
+    "One read-only task, three repeats per configuration; exploratory only.",
+    "Legacy guidance reconstructed from Git HEAD, not the lost uncommitted collection.",
+    "Same current application source in both arms; no Claude runtime comparison.",
+    "Cache temperature uncontrolled; use reported cached input separately.",
+    "No implementation, build, or browser-quality claim."
+  ],
+  "fixtures": "C:\\Users\\anthony\\AppData\\Local\\Temp\\codex-token-pilot-y_d0ibzk",
+  "application_source_unchanged": true
+}

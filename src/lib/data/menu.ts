@@ -454,10 +454,6 @@ const lunchSpecialCourses: PrixFixeCourse[] = [
       "Vareniki with potato",
     ],
   },
-  {
-    label: "Beverage",
-    options: ["Still or sparkling water", "Tea", "Coffee", "Soda", "Compot"],
-  },
 ];
 
 /** House policies shown alongside the menu. */

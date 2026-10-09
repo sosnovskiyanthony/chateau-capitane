@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 
 import { PhotoGrid } from "@/components/gallery/photo-grid";
 import { Container } from "@/components/layout/container";
+import { CallCta } from "@/components/ui/call-cta";
 import { CtaLink } from "@/components/ui/cta-link";
+import { PageHeader } from "@/components/ui/page-header";
 import { getPhotoGroups, hasGalleryPhotos } from "@/lib/data/gallery";
-import { site } from "@/lib/data/site";
 import { pageMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = {
@@ -22,25 +23,21 @@ export default function GalleryPage() {
   const groups = getPhotoGroups();
 
   return (
-    <Container className="py-16 md:py-20">
-      <header className="max-w-2xl">
-        <h1 className="font-serif text-4xl text-stone-900 sm:text-5xl">
-          Gallery
-        </h1>
-        <p className="mt-6 text-lg leading-8 text-stone-600">
-          The rooms, the tables we set for parties, and what comes out of the
-          kitchen.
-        </p>
-      </header>
+    <Container className="pb-20 pt-14 md:pb-28 md:pt-20">
+      <PageHeader
+        eyebrow="Photographs"
+        title="Gallery"
+        intro="The rooms, the tables we set for parties, and what comes out of the kitchen."
+      />
 
-      <div className="mt-14 space-y-16">
+      <div className="mt-16 space-y-20 md:mt-20 md:space-y-24">
         {groups.map((group) => (
           <section key={group.id} id={group.id}>
-            <h2 className="font-serif text-2xl text-stone-900 sm:text-3xl">
+            <h2 className="font-serif text-3xl leading-tight tracking-tight text-ivory sm:text-4xl">
               {group.name}
             </h2>
             {group.description ? (
-              <p className="mt-3 max-w-prose leading-7 text-stone-600">
+              <p className="mt-3 max-w-prose leading-7 text-ivory-muted">
                 {group.description}
               </p>
             ) : null}
@@ -51,11 +48,9 @@ export default function GalleryPage() {
         ))}
       </div>
 
-      <div className="mt-16 flex flex-wrap gap-3">
-        <CtaLink href="/private-events">Banquet menus</CtaLink>
-        <CtaLink href={site.phone.href} variant="secondary">
-          Call {site.phone.display}
-        </CtaLink>
+      <div className="mt-20 flex flex-wrap gap-3 md:mt-24">
+        <CtaLink href="/private-events">See banquet menus</CtaLink>
+        <CallCta variant="secondary" />
       </div>
     </Container>
   );

@@ -1,53 +1,68 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
+import { ctaClassName } from "@/components/ui/cta-link";
 import { site } from "@/lib/data/site";
 
+// ivory/45 keeps field borders above 3:1 against both ink-900 and ink-950.
 const fieldClasses =
-  "mt-1.5 w-full border border-stone-400 bg-stone-50 px-3 py-2 text-stone-900 focus-visible:border-wine-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-wine-700";
+  "mt-2.5 w-full border border-ivory/45 bg-ink-950 px-4 py-3 text-ivory focus-visible:border-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold";
 
-const labelClasses = "block text-sm font-medium text-stone-800";
+const labelClasses =
+  "block text-xs font-semibold uppercase tracking-caps text-ivory";
+
+const optionalClasses = "font-normal normal-case tracking-normal text-ivory-muted";
+
+type Status = "idle" | "sending" | "sent" | "invalid" | "failed";
 
 export function ContactForm() {
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
+  const sending = useRef(false);
+  const submission = useRef<{ body: string; key: string } | null>(null);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
+    if (sending.current) return;
+    const form = event.currentTarget;
+    sending.current = true;
+    setStatus("sending");
 
-    const name = String(data.get("name") ?? "");
-    const email = String(data.get("email") ?? "");
-    const phone = String(data.get("phone") ?? "");
-    const date = String(data.get("date") ?? "");
-    const guests = String(data.get("guests") ?? "");
-    const message = String(data.get("message") ?? "");
-
-    const body = [
-      `Name: ${name}`,
-      `Email: ${email}`,
-      phone && `Phone: ${phone}`,
-      date && `Date: ${date}`,
-      guests && `Guests: ${guests}`,
-      "",
-      message,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    // Phase 1 hands off to the guest's mail client. Replace this with
-    // `await fetch("/api/contact", { method: "POST", body: … })` once a
-    // submission handler exists server-side.
-    window.location.href = `mailto:${site.email}?subject=${encodeURIComponent(
-      `Enquiry from ${name}`,
-    )}&body=${encodeURIComponent(body)}`;
-
-    setSent(true);
+    try {
+      const body = JSON.stringify(Object.fromEntries(new FormData(form)));
+      // Keep the key when retrying unchanged fields after an uncertain response.
+      if (submission.current?.body !== body) {
+        submission.current = { body, key: crypto.randomUUID() };
+      }
+      // Validated and sent by src/app/api/contact/route.ts.
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": submission.current.key,
+        },
+        body,
+      });
+      if (response.status === 400) {
+        setStatus("invalid");
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(`Contact form failed with status ${response.status}`);
+      }
+      form.reset();
+      submission.current = null;
+      setStatus("sent");
+    } catch {
+      setStatus("failed");
+    } finally {
+      sending.current = false;
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="max-w-xl">
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-x-6 gap-y-7 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label htmlFor="name" className={labelClasses}>
             Name
@@ -72,13 +87,14 @@ export function ContactForm() {
             type="email"
             required
             autoComplete="email"
+            spellCheck={false}
             className={fieldClasses}
           />
         </div>
 
         <div>
           <label htmlFor="phone" className={labelClasses}>
-            Phone <span className="text-stone-500">(optional)</span>
+            Phone <span className={optionalClasses}>(optional)</span>
           </label>
           <input
             id="phone"
@@ -91,19 +107,20 @@ export function ContactForm() {
 
         <div>
           <label htmlFor="date" className={labelClasses}>
-            Date <span className="text-stone-500">(optional)</span>
+            Date <span className={optionalClasses}>(optional)</span>
           </label>
           <input
             id="date"
             name="date"
             type="date"
+            autoComplete="off"
             className={fieldClasses}
           />
         </div>
 
         <div>
           <label htmlFor="guests" className={labelClasses}>
-            Guests <span className="text-stone-500">(optional)</span>
+            Guests <span className={optionalClasses}>(optional)</span>
           </label>
           <input
             id="guests"
@@ -111,6 +128,7 @@ export function ContactForm() {
             type="number"
             min={1}
             inputMode="numeric"
+            autoComplete="off"
             className={fieldClasses}
           />
         </div>
@@ -127,19 +145,47 @@ export function ContactForm() {
             className={fieldClasses}
           />
         </div>
+
+        {/* Honeypot: hidden from people and screen readers, so only bots fill it in. */}
+        <div aria-hidden="true" className="sr-only">
+          <label htmlFor="company">Company</label>
+          <input
+            id="company"
+            name="company"
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+          />
+        </div>
       </div>
 
       <button
         type="submit"
-        className="mt-6 inline-flex items-center justify-center bg-wine-700 px-6 py-3 text-sm font-medium text-stone-50 transition-colors hover:bg-wine-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
+        disabled={status === "sending"}
+        className={`mt-10 disabled:cursor-wait disabled:opacity-70 ${ctaClassName("primary")}`}
       >
-        Send message
+        {status === "sending" ? "Sending…" : "Send message"}
       </button>
 
-      <p aria-live="polite" className="mt-4 text-sm text-stone-600">
-        {sent
-          ? "Your mail app should have opened with the message ready to send. If it didn’t, call us and we’ll sort it out."
+      <p aria-live="polite" className="mt-4 text-sm leading-6 text-ivory-muted">
+        {status === "sent"
+          ? "Thank you. Your message is on its way, and we’ll reply by email."
           : null}
+        {status === "invalid"
+          ? "Some details didn’t look right. Please check the form and try again."
+          : null}
+        {status === "failed" ? (
+          <>
+            Your message didn&rsquo;t go through. Please call us at{" "}
+            <a
+              href={site.phone.href}
+              className="font-semibold tabular-nums text-gold hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              {site.phone.display}
+            </a>{" "}
+            and we&rsquo;ll sort it out.
+          </>
+        ) : null}
       </p>
     </form>
   );

@@ -19,7 +19,7 @@ const tiers: BanquetTier[] = [
     id: "kids",
     name: "Kids Banquet",
     pricePerPerson: 75,
-    summary: "Built for children's parties, with food kids actually eat.",
+    summary: "Built for children’s parties, with food kids actually eat.",
     courses: [
       {
         label: "Cold appetizers & salad",

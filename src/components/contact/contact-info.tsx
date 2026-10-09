@@ -1,4 +1,8 @@
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { formatHours, site } from "@/lib/data/site";
+
+const linkClasses =
+  "mt-4 inline-flex min-h-11 items-center font-semibold text-gold transition-colors hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 
 export function ContactInfo({
   columns = 2,
@@ -9,11 +13,11 @@ export function ContactInfo({
 }) {
   return (
     <div
-      className={`grid gap-8 ${columns === 2 ? "sm:grid-cols-2" : ""} ${className}`}
+      className={`grid gap-10 ${columns === 2 ? "sm:grid-cols-2" : ""} ${className}`}
     >
       <div>
-        <h3 className="font-serif text-xl text-stone-900">Find us</h3>
-        <address className="mt-3 space-y-1 text-stone-600 not-italic">
+        <Eyebrow as="h3">Find us</Eyebrow>
+        <address className="mt-4 text-lg not-italic leading-8 text-ivory">
           <span className="block">{site.address.street}</span>
           <span className="block">
             {site.address.city}, {site.address.state} {site.address.zip}
@@ -23,28 +27,25 @@ export function ContactInfo({
           href={site.mapLinkUrl}
           target="_blank"
           rel="noreferrer"
-          className="mt-3 inline-block text-wine-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
+          className={linkClasses}
         >
           Get directions
         </a>
       </div>
 
       <div>
-        <h3 className="font-serif text-xl text-stone-900">Hours</h3>
-        <dl className="mt-3 space-y-2 text-stone-600">
+        <Eyebrow as="h3">Hours</Eyebrow>
+        <dl className="mt-4 space-y-4 leading-7 text-ivory-muted">
           <div>
-            <dt className="inline">Dining: </dt>
-            <dd className="inline">{formatHours(site.hours.dining)}</dd>
+            <dt className="text-lg text-ivory">Dining</dt>
+            <dd>{formatHours(site.hours.dining)}</dd>
           </div>
           <div>
-            <dt className="inline">Lunch special: </dt>
-            <dd className="inline">{formatHours(site.hours.lunchSpecial)}</dd>
+            <dt className="text-lg text-ivory">Lunch special</dt>
+            <dd>{formatHours(site.hours.lunchSpecial)}</dd>
           </div>
         </dl>
-        <a
-          href={site.phone.href}
-          className="mt-3 inline-block text-wine-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine-700"
-        >
+        <a href={site.phone.href} className={`${linkClasses} tabular-nums`}>
           {site.phone.display}
         </a>
       </div>

@@ -4,41 +4,49 @@ import { ContactForm } from "@/components/contact/contact-form";
 import { ContactInfo } from "@/components/contact/contact-info";
 import { MapEmbed } from "@/components/contact/map-embed";
 import { Container } from "@/components/layout/container";
+import { PageHeader } from "@/components/ui/page-header";
+import { BookCta } from "@/components/ui/book-cta";
 import { site } from "@/lib/data/site";
 import { pageMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = pageMetadata({
   title: "Reservations & Directions, Brooklyn",
-  description: `Château Capitaine, ${site.address.full}. Call ${site.phone.display} for reservations and banquet enquiries.`,
+  description: `Château Capitaine, ${site.address.full}. Book a table on OpenTable or call ${site.phone.display} for banquet enquiries.`,
   path: "/contact",
 });
 
 export default function ContactPage() {
   return (
-    <Container className="py-16 md:py-20">
-      <header className="max-w-2xl">
-        <h1 className="font-serif text-4xl text-stone-900 sm:text-5xl">
-          Contact
-        </h1>
-        <p className="mt-6 text-lg leading-8 text-stone-600">
-          Reservations, banquets, and anything else — the phone is quickest,
-          especially for a party with a date attached. Otherwise send us a note
-          and we&rsquo;ll come back to you.
-        </p>
-      </header>
+    <Container className="pb-20 pt-14 md:pb-28 md:pt-20">
+      <PageHeader
+        eyebrow="Reservations & directions"
+        title="Contact"
+        intro={
+          <>
+            Book your table on OpenTable. For banquets or other enquiries,
+            call us or send a note and we&rsquo;ll come back to you.
+          </>
+        }
+      />
 
-      <div className="mt-14 grid gap-12 md:grid-cols-12">
+      <BookCta className="mt-8" />
+
+      <div className="mt-16 grid gap-16 md:mt-20 md:grid-cols-12 md:gap-12">
         <div className="md:col-span-7">
-          <h2 className="font-serif text-2xl text-stone-900">Send a message</h2>
-          <div className="mt-6">
+          <h2 className="font-serif text-2xl tracking-tight text-ivory sm:text-3xl">
+            Send a message
+          </h2>
+          <div className="mt-8">
             <ContactForm />
           </div>
         </div>
 
-        <div className="md:col-span-5">
-          <h2 className="font-serif text-2xl text-stone-900">Visit or call</h2>
-          <ContactInfo columns={1} className="mt-6" />
-          <div className="mt-8">
+        <div className="bg-ink-800 px-6 py-10 sm:px-8 md:col-span-5 md:self-start">
+          <h2 className="font-serif text-2xl tracking-tight text-ivory sm:text-3xl">
+            Visit or call
+          </h2>
+          <ContactInfo columns={1} className="mt-8" />
+          <div className="mt-10">
             <MapEmbed />
           </div>
         </div>

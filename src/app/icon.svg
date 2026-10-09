@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 8 96 96">
+  <!-- Tab-size cut of the logo mark (src/components/ui/logo-mark.tsx): the same cap and anchor with heavier strokes, and no rope, which can't survive at 16px. -->
+  <rect y="8" width="96" height="96" fill="#0d0d0d"/>
+  <g fill="#c6a15b">
+    <path d="M33 23.5C30.5 21.3 27.8 19 27.3 16.4C27 14.4 28.4 13.1 31 12.6C36 11.5 42 10.8 48 10.8C54 10.8 60 11.5 65 12.6C67.6 13.1 69 14.4 68.7 16.4C68.2 19 65.5 21.3 63 23.5Z"/>
+    <rect x="33" y="25" width="30" height="4"/>
+    <path d="M31 30.5H65C62.5 34 56 35.3 48 35.3C40 35.3 33.5 34 31 30.5Z"/>
+    <rect x="44" y="36.8" width="8" height="58.7"/>
+    <path d="M22.6 69.5L18.9 82.6L33.9 77.1Z"/>
+    <path d="M73.4 69.5L77.1 82.6L62.1 77.1Z"/>
+    <path d="M40.8 94H55.2L48 101Z"/>
+  </g>
+  <g fill="none" stroke="#c6a15b" stroke-width="8">
+    <path d="M34 46H62" stroke-linecap="round"/>
+    <path d="M26.4 79.9A23 23 0 0 0 69.6 79.9"/>
+  </g>
+</svg>

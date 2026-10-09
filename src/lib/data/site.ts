@@ -23,7 +23,7 @@ const fullAddress = `${street}, ${city}, ${state} ${zip}`;
 export const site = {
   name: "Château Capitaine",
   shortName: "Château Capitaine",
-  /** Placeholder until the production domain is confirmed — every absolute URL derives from this. */
+  /** Placeholder until the production domain is confirmed; every absolute URL derives from this. */
   url: "https://www.chateaucapitaine.com",
   tagline: "Continuing a family tradition of excellence",
   description:
@@ -35,6 +35,13 @@ export const site = {
     state,
     zip,
     full: fullAddress,
+  },
+
+  /** The building's surveyed position, from OpenStreetMap. */
+  geo: {
+    latitude: 40.594149,
+    longitude: -73.9612306,
+    display: "40°35′39″N 73°57′40″W",
   },
 
   phone: {
@@ -60,13 +67,17 @@ export const site = {
 
   lunchSpecialPrice: 25,
 
+  /** Verified booking destination used by the current restaurant website. */
+  reservationUrl:
+    "https://www.opentable.com/r/chateau-capitaine-reservations-brooklyn?restref=1023577&lang=en-US&ot_source=Restaurantebsite",
+
   social: {
     facebook: "https://www.facebook.com/chateaudecapitaine",
-    instagram: "https://www.instagram.com/chateau_de_capitaine",
+    instagram: "https://www.instagram.com/chateau_capitaine/",
     yelp: "https://www.yelp.com/biz/chateau-de-capitaine-brooklyn-2",
   },
 
-  /** Keyless Google Maps embed — no API key or billing account required. */
+  /** Keyless Google Maps embed; no API key or billing account required. */
   mapEmbedUrl: `https://www.google.com/maps?q=${encodeURIComponent(fullAddress)}&output=embed`,
   mapLinkUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     `Chateau Capitaine ${fullAddress}`,
@@ -81,7 +92,7 @@ export const navLinks = [
   { href: "/contact", label: "Contact" },
 ] as const;
 
-/** Secondary links — footer only, matching how the old site treated testimonials. */
+/** Secondary links, footer only, matching how the old site treated testimonials. */
 export const footerLinks = [
   { href: "/testimonials", label: "Testimonials" },
 ] as const;
@@ -105,10 +116,10 @@ function formatTime(time: string): string {
     : `${hour}:${String(rawMinute).padStart(2, "0")}${period}`;
 }
 
-/** "Wed–Sun, 11am–11pm" */
+/** "Wed to Sun, 11am to 11pm" */
 export function formatHours(hours: OpeningHours): string {
   const first = SHORT_DAY[hours.days[0]];
   const last = SHORT_DAY[hours.days[hours.days.length - 1]];
-  const range = hours.days.length === 1 ? first : `${first}–${last}`;
-  return `${range}, ${formatTime(hours.opens)}–${formatTime(hours.closes)}`;
+  const range = hours.days.length === 1 ? first : `${first} to ${last}`;
+  return `${range}, ${formatTime(hours.opens)} to ${formatTime(hours.closes)}`;
 }

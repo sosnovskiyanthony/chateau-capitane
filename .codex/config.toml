@@ -1,0 +1,5 @@
+# Retains the project's existing browser MCP capability for Codex.
+# Personal model, effort, permissions, and credentials stay in user settings.
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@latest", "--output-dir", ".playwright-mcp"]

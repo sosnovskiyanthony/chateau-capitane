@@ -6,14 +6,12 @@ export function TestimonialCard({
   testimonial: Testimonial;
 }) {
   return (
-    <figure className="border-t border-stone-300 pt-6">
+    <figure className="border-t border-ivory/15 pt-6">
       <blockquote>
-        <p className="leading-7 text-stone-700">{testimonial.quote}</p>
+        <p className="leading-7 text-ivory">{testimonial.quote}</p>
       </blockquote>
-      <figcaption className="mt-4 text-sm text-stone-500">
-        <span className="font-medium text-stone-700">
-          {testimonial.author}
-        </span>
+      <figcaption className="mt-4 text-sm text-ivory-muted">
+        <span className="font-semibold text-gold">{testimonial.author}</span>
         {" · "}
         {testimonial.location}
       </figcaption>

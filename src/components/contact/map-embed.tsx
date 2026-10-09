@@ -7,7 +7,8 @@ export function MapEmbed() {
       title={`Map showing ${site.name} at ${site.address.full}`}
       loading="lazy"
       referrerPolicy="no-referrer-when-downgrade"
-      className="aspect-4/3 w-full border border-stone-300"
+      // Sits inside an ink-800 card, so the darker ground reads as an inset until the map loads.
+      className="aspect-4/3 w-full bg-ink-900"
     />
   );
 }

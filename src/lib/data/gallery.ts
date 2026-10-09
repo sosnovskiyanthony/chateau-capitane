@@ -46,7 +46,9 @@ const groups: PhotoGroup[] = [
       {
         id: "entrance",
         alt: "The entrance on Coney Island Avenue at dusk",
-        aspect: "aspect-4/3",
+        // Portrait: the source photo is a tall storefront shot, not shot for a 4:3 crop.
+        aspect: "aspect-3/4",
+        src: "/photos/entrance-night.jpg",
       },
     ],
   },
@@ -74,7 +76,7 @@ const groups: PhotoGroup[] = [
       },
       {
         id: "kids-party",
-        alt: "A children's party table set for the kids banquet",
+        alt: "A children’s party table set for the kids banquet",
         aspect: "aspect-4/3",
       },
       {
@@ -90,45 +92,52 @@ const groups: PhotoGroup[] = [
     description: "What comes out of it.",
     photos: [
       {
-        id: "seafood-platter",
-        alt: "A mixed seafood platter with langoustines and shrimp",
-        aspect: "aspect-3/2",
-        feature: true,
+        id: "lobster-platter",
+        alt: "Whole lobster with red caviar, greens, and lemon on a white platter",
+        aspect: "aspect-4/5",
+        src: "/photos/lobster-platter-instagram.jpg",
       },
       {
         id: "pickled-tomatoes",
         alt: "House-cured pickled tomatoes on a serving plate",
         aspect: "aspect-square",
+        src: "/photos/mixed-pickles.jpg",
       },
       {
         id: "chicken-tabaka",
         alt: "Chalakhach chicken tabaka pressed flat and crisped",
         aspect: "aspect-square",
+        src: "/photos/chicken-tabaka.jpg",
       },
       {
         id: "roasted-duck",
         alt: "Roasted duck in fruit sauce, carved on a platter",
         aspect: "aspect-square",
+        src: "/photos/roasted-duck.jpg",
       },
       {
         id: "borscht",
         alt: "A bowl of borscht with sour cream and dill",
         aspect: "aspect-square",
+        src: "/photos/borscht.jpg",
       },
       {
         id: "kebabs",
         alt: "Mixed kebabs coming off the grill",
         aspect: "aspect-4/3",
+        src: "/photos/kebabs-grill.jpg",
       },
       {
         id: "caviar",
-        alt: "Red caviar tower from the banquet table",
-        aspect: "aspect-4/3",
+        alt: "Red caviar served with blini and accompaniments at a banquet table",
+        aspect: "aspect-4/5",
+        src: "/photos/caviar-service-instagram.jpg",
       },
       {
         id: "tomahawk",
         alt: "A prime tomahawk steak rested and sliced",
         aspect: "aspect-4/3",
+        src: "/photos/tomahawk-steak.jpg",
       },
       {
         id: "napoleon-cake",
