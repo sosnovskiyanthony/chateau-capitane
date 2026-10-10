@@ -71,3 +71,14 @@ Setup at provisioning (needs owner authorization because it sends real email):
 Revoke: `delete from inquiry_private.staff_members where user_id = '<user id>';` (takes effect on their next request; no data is removed). To also end their sessions, sign the user out or delete them under Authentication → Users. Emergency: deleting all rows closes the admin area for everyone.
 
 Not included yet: a "forgot password" form (the owner sends resets from the dashboard), multi-factor sign-in, and role management in the site (deliberately SQL-only). Login limits count per network; Supabase's own Auth limits see only the server's address, so heavy failed sign-ins from many networks can still trip them for everyone.
+
+## Staff inbox (B07)
+
+`migrations/202610100002_staff_inbox.sql` adds an inquiry `version`, append-only `inquiry_notes` (1–2000 characters, at most 100 per inquiry) and `audit_events` (status changes, plus role grants/changes/revocations recorded by a trigger on `staff_members`; IDs, statuses, roles and staff email only, never guest text). Four service-role functions back `/admin/inquiries`: `staff_list_inquiries` (newest first, status filter, name/email substring search with wildcards escaped, keyset pages of 25), `staff_get_inquiry` (detail, notification state, notes, latest 200 history rows), `staff_set_inquiry_status` and `staff_add_inquiry_note`. Each takes the staff user ID resolved by `requireStaff` and re-checks membership in the database.
+
+- **Statuses.** new → in progress → resolved; new may go straight to resolved; resolved only reopens to in progress. A change must carry the version the editor saw: a stale version returns `stale`, changes nothing, and the page says someone else changed it.
+- **Write path.** The server key has no direct update/insert rights on status, notes or audit; only the two security-definer functions write them, so every status change is checked and audited.
+- **Delivery problems** (bounced, failed, suppressed, complained, delayed, retrying, uncertain, failed send, missing job) are marked "Attention" in the list and detail.
+- **Privacy.** Pages are dynamic and sent `Cache-Control: private, no-store`; RPC calls use `cache: "no-store"`; nothing logs inquiry text. Replies go out through staff's own email/phone (mailto/tel links); automatic replies are out of scope.
+- **Recovery (read-only inbox).** As the database owner: `revoke execute on function public.staff_set_inquiry_status(uuid, text, uuid, integer, text), public.staff_add_inquiry_note(uuid, text, uuid, text) from service_role;` Reading continues; actions show "could not be saved". Grant execute back to restore.
+- **Volume.** Search is a sequential scan, fine for thousands of inquiries; add `pg_trgm` indexes if it grows far beyond that.

@@ -344,13 +344,106 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       }
     });
 
+    await t.test("inbox: staff list/filter/page, versioned status changes, audited roles, bounded append-only notes", async () => {
+      const staff = randomUUID(), revoked = randomUUID();
+      await admin.query("insert into inquiry_private.staff_members(user_id, role) values ($1,'staff'),($2,'staff')", [staff, revoked]);
+      const call = async (fn, args) => (await asService(`select public.${fn}(${args.map((_, i) => `$${i + 1}`).join(",")}) r`, args))[0].r;
+      const list = (status = null, search = null, at = null, id = null, limit = 100) =>
+        call("staff_list_inquiries", [staff, status, search, at, id, limit]);
+      const setStatus = (id, version, status, who = staff) => call("staff_set_inquiry_status", [who, "s@example.invalid", id, version, status]);
+
+      const target = (await record(randomUUID(), { ...inquiry, name: "Findable 100%_Name" })).inquiryId;
+      const all = await list();
+      assert.ok(all.length >= 3 && all.some((row) => row.id === target));
+      assert.ok(all.every((row, i) => i === 0 || row.createdAt <= all[i - 1].createdAt));
+      assert.equal(all.find((row) => row.id === target).notification.state, "pending");
+      // Search escapes LIKE wildcards; "%" alone matches only literal percent signs.
+      assert.deepEqual((await list(null, "100%_n")).map((row) => row.id), [target]);
+      assert.ok((await list(null, "%")).every((row) => row.name.includes("%")));
+      // Keyset pages are disjoint and cover the list.
+      const first = await list(null, null, null, null, 2);
+      const rest = await list(null, null, first[1].createdAt, first[1].id, 100);
+      assert.deepEqual([...first, ...rest].map((row) => row.id), all.map((row) => row.id));
+
+      const detail = await call("staff_get_inquiry", [staff, target]);
+      assert.equal(detail.message, inquiry.message);
+      assert.equal(detail.version, 1);
+      assert.equal(await call("staff_get_inquiry", [staff, randomUUID()]), null);
+
+      // Two editors saw version 1: the first wins, the second is told it is stale and changes nothing.
+      const [a, b] = await Promise.all([setStatus(target, 1, "in_progress"), setStatus(target, 1, "resolved")]);
+      assert.deepEqual([a.kind, b.kind].sort(), ["stale", "updated"]);
+      const after = await call("staff_get_inquiry", [staff, target]);
+      assert.equal(after.version, 2);
+      assert.equal(after.status, a.kind === "updated" ? "in_progress" : "resolved");
+      // Resolved can only reopen to in_progress; no move back to new.
+      if (after.status === "in_progress") assert.equal((await setStatus(target, 2, "resolved")).kind, "updated");
+      const resolvedVersion = after.status === "in_progress" ? 3 : 2;
+      assert.equal((await setStatus(target, resolvedVersion, "new")).kind, "invalid");
+      assert.equal((await setStatus(target, resolvedVersion, "resolved")).kind, "invalid");
+      assert.deepEqual(await setStatus(target, resolvedVersion, "in_progress"), { kind: "updated", status: "in_progress", version: resolvedVersion + 1 });
+      assert.equal((await setStatus(randomUUID(), 1, "resolved")).kind, "not_found");
+      assert.deepEqual((await list("in_progress")).map((row) => row.id).includes(target), true);
+      const history = (await call("staff_get_inquiry", [staff, target])).history;
+      assert.equal(history.length, resolvedVersion);
+      assert.deepEqual(history.at(-1), { ...history.at(-1), actor: "s@example.invalid", from: "resolved", to: "in_progress" });
+
+      // Notes: trimmed, bounded in length and count; concurrent adds cannot exceed 100.
+      assert.equal((await call("staff_add_inquiry_note", [staff, "s@example.invalid", target, "  Called back  "])).kind, "added");
+      await assert.rejects(call("staff_add_inquiry_note", [staff, "s@example.invalid", target, "x".repeat(2001)]), (e) => e.code === "23514");
+      await assert.rejects(call("staff_add_inquiry_note", [staff, "s@example.invalid", target, "   "]), (e) => e.code === "23514");
+      const adds = await Promise.all(Array.from({ length: 110 }, (_, i) => call("staff_add_inquiry_note", [staff, "s@example.invalid", target, `n${i}`])));
+      assert.equal(adds.filter((r) => r.kind === "added").length, 99);
+      assert.equal(adds.filter((r) => r.kind === "full").length, 11);
+      const notes = (await call("staff_get_inquiry", [staff, target])).notes;
+      assert.equal(notes.length, 100);
+      assert.deepEqual(notes[0], { ...notes[0], author: "s@example.invalid", body: "Called back" });
+
+      // Audit rows never hold guest text; role grants/changes/revocations are recorded by trigger.
+      await admin.query("update inquiry_private.staff_members set role='owner' where user_id=$1", [revoked]);
+      const moved = randomUUID();
+      await admin.query("update inquiry_private.staff_members set user_id=$2 where user_id=$1", [revoked, moved]);
+      await admin.query("update inquiry_private.staff_members set user_id=$1 where user_id=$2", [revoked, moved]);
+      assert.deepEqual((await admin.query("select action from inquiry_private.audit_events where subject_user=$1 order by id", [moved])).rows.map((r) => r.action), ["role_granted", "role_revoked"]);
+      await admin.query("delete from inquiry_private.staff_members where user_id=$1", [revoked]);
+      const roleAudit = (await admin.query("select action, from_value, to_value from inquiry_private.audit_events where subject_user=$1 order by id", [revoked])).rows;
+      assert.deepEqual(roleAudit, [{ action: "role_granted", from_value: null, to_value: "staff" },
+        { action: "role_changed", from_value: "staff", to_value: "owner" }, { action: "role_revoked", from_value: "owner", to_value: null },
+        { action: "role_granted", from_value: null, to_value: "owner" }, { action: "role_revoked", from_value: "owner", to_value: null }]);
+      const auditText = JSON.stringify((await admin.query("select * from inquiry_private.audit_events")).rows);
+      assert.ok(!auditText.includes(inquiry.message) && !auditText.includes(inquiry.email) && !auditText.includes("Called back"));
+
+      // A revoked or unknown member is refused by every function, and nothing changes.
+      for (const [fn, args] of [["staff_list_inquiries", [revoked, null, null, null, null, 10]], ["staff_get_inquiry", [revoked, target]],
+        ["staff_set_inquiry_status", [revoked, "x", target, resolvedVersion + 1, "resolved"]], ["staff_add_inquiry_note", [null, "x", target, "y"]]]) {
+        await assert.rejects(call(fn, args), (e) => e.code === "42501");
+      }
+      assert.equal((await call("staff_get_inquiry", [staff, target])).version, resolvedVersion + 1);
+      for (const args of [[staff, "bogus", null, null, null, 10], [staff, null, "x".repeat(101), null, null, 10],
+        [staff, null, null, null, null, 0], [staff, null, null, new Date().toISOString(), null, 10]]) {
+        await assert.rejects(call("staff_list_inquiries", args), (e) => e.code === "22023");
+      }
+      const server = await connect();
+      try {
+        await server.query("set role service_role");
+        await rejectsSql(server, "update inquiry_private.inquiries set message='x'", [], "42501");
+        // Status, notes and audit change only through the audited functions.
+        await rejectsSql(server, "update inquiry_private.inquiries set status='new', version=1", [], "42501");
+        await rejectsSql(server, "insert into inquiry_private.inquiry_notes(inquiry_id, author_id, author_email, body) values ($1,$2,'x','y')", [target, staff], "42501");
+        await rejectsSql(server, "insert into inquiry_private.audit_events(action) values ('status_changed')", [], "42501");
+        await rejectsSql(server, "update inquiry_private.inquiry_notes set body='x'", [], "42501");
+        await rejectsSql(server, "delete from inquiry_private.audit_events", [], "42501");
+        await rejectsSql(server, "insert into inquiry_private.staff_members values ($1,'owner')", [randomUUID()], "42501");
+      } finally { await server.end(); }
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
         for (const role of ["anon", "authenticated"]) {
           await denied.query(`set role ${role}`);
           await denied.query("select set_config('request.jwt.claims', '{\"role\":\"authenticated\",\"user_metadata\":{\"role\":\"owner\"}}', false)");
-          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits", "staff_members"]) {
+          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events"]) {
             await rejectsSql(denied, `select * from inquiry_private.${table}`, [], "42501");
             await rejectsSql(denied, `delete from inquiry_private.${table}`, [], "42501");
           }
@@ -361,11 +454,15 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
           await rejectsSql(denied, "select public.check_contact_limit(repeat('a',64),null,5,60,5,60)", [], "42501");
           await rejectsSql(denied, "select public.staff_role($1)", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.check_login_limit(repeat('a',64),5,60)", [], "42501");
+          await rejectsSql(denied, "select public.staff_list_inquiries($1,null,null,null,null,10)", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.staff_get_inquiry($1,$1)", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.staff_set_inquiry_status($1,'x',$1,1,'resolved')", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.staff_add_inquiry_note($1,'x',$1,'y')", [randomUUID()], "42501");
           await denied.query("reset role");
         }
         // Temporary test-only grants demonstrate RLS independently from missing privileges.
         await admin.query("begin; grant usage on schema inquiry_private to authenticated; grant select on all tables in schema inquiry_private to authenticated; set local role authenticated");
-        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits", "staff_members"]) {
+        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events"]) {
           assert.equal((await admin.query(`select * from inquiry_private.${table}`)).rowCount, 0);
         }
         await admin.query("rollback");
@@ -373,7 +470,6 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
         await rejectsSql(denied, "update inquiry_private.notification_jobs set body='changed'", [], "42501");
         await rejectsSql(denied, "delete from inquiry_private.submission_keys", [], "42501");
         await rejectsSql(denied, "update inquiry_private.notification_jobs set recipient='other@example.invalid'", [], "42501");
-        await rejectsSql(denied, "update inquiry_private.inquiries set status='resolved'", [], "42501");
         await rejectsSql(denied, "update inquiry_private.delivery_events set job_id=null", [], "42501");
       } finally { await denied.end(); }
     });
