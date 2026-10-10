@@ -7,12 +7,15 @@ import {
   CONTENT_TAG, draftDocument, getContentState, getRevision, publishRevision, saveDraft,
 } from "@/lib/server/content/content";
 import { ContentError, validateDocument } from "@/lib/server/content/document";
-import { applySection, findSection } from "@/lib/server/content/editor";
+import { applySection, BLANK_PHOTOS, findSection, photoUploads, type StoredPhoto } from "@/lib/server/content/editor";
+import { addMedia, processPhoto } from "@/lib/server/content/media";
 import { getPersistenceConfiguration } from "@/lib/server/inquiries/persistence";
 
 // Server Functions are public POST endpoints: each re-checks staff access and validates every field.
 export type SaveState = { error: string } | undefined;
 
+/** Stands in for a photo ID while the form is only being checked. */
+const NOT_STORED = "00000000-0000-4000-8000-000000000000";
 const UNAVAILABLE = "That could not be saved right now. Please try again shortly.";
 const STALE = "Someone else saved changes while you were editing. Nothing was saved; copy anything you need, then reload this page.";
 
@@ -35,7 +38,22 @@ export async function saveSection(_state: SaveState, form: FormData): Promise<Sa
     const current = draftDocument(state);
     const section = findSection(current, slug);
     if (!section) return { error: "This section no longer exists." };
-    result = await saveDraft(configuration, staff, base, applySection(current, section, form));
+    // Uploaded photos stay private until a published version lists them. Every field is checked, and every
+    // file decoded, before the first one is stored, so a refused save does not use up the photo library.
+    const stored = new Map<number, StoredPhoto>();
+    if (section.kind === "gallery") {
+      const uploads = photoUploads(form, current.gallery[section.index].photos.length + BLANK_PHOTOS);
+      applySection(current, section, form, new Map(uploads.map(({ row, date, url }) => [row, { media: NOT_STORED, aspect: "aspect-4/3", date, url }])));
+      const processed = [];
+      for (const { file } of uploads) processed.push(await processPhoto(new Uint8Array(await file.arrayBuffer())));
+      for (const [index, { row, date, url }] of uploads.entries()) {
+        const media = await addMedia(configuration, staff, processed[index], { date, url });
+        if (media === "full") return { error: "The photo library is full (500 photos). Ask the site owner to clear unused photos." };
+        if (!media) return { error: UNAVAILABLE };
+        stored.set(row, { media, aspect: processed[index].aspect, date, url });
+      }
+    }
+    result = await saveDraft(configuration, staff, base, applySection(current, section, form, stored));
   } catch (error) {
     if (error instanceof ContentError) return { error: error.message };
     throw error;

@@ -9,6 +9,8 @@ export type Photo = {
   id: string;
   /** Specific alt text — used as the placeholder label until a photo exists. */
   alt: string;
+  /** Shown under the photo. */
+  caption?: string;
   aspect: string;
   /** Spans two columns on wide screens, for visual rhythm. */
   feature?: boolean;
@@ -148,12 +150,15 @@ const groups: PhotoGroup[] = [
   },
 ];
 
+/** Aspect-ratio classes a photo may use (uploads pick the nearest). */
+export const PHOTO_ASPECTS = ["aspect-3/2", "aspect-4/3", "aspect-square", "aspect-4/5", "aspect-3/4"] as const;
+
 export function getPhotoGroups(): PhotoGroup[] {
   return groups;
 }
 
-export function hasGalleryPhotos(): boolean {
-  return groups.some((group) =>
+export function hasGalleryPhotos(photoGroups: PhotoGroup[] = groups): boolean {
+  return photoGroups.some((group) =>
     group.photos.some((photo) => photo.src !== undefined),
   );
 }

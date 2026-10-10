@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { GalleryView } from "@/components/gallery/gallery-view";
 import { MenuView } from "@/components/menu/menu-view";
 import { PrivateEventsView } from "@/components/private-events/private-events-view";
 import { PageHeader } from "@/components/ui/page-header";
@@ -23,7 +24,7 @@ export default async function PreviewPage({ params, searchParams }: PageProps<"/
   let content;
   try { content = stored ? toSiteContent(validateDocument(stored.document)) : undefined; }
   catch (error) { if (!(error instanceof ContentError)) throw error; }
-  const tabs = [{ id: "menu", label: "Menu" }, { id: "events", label: "Private events" }, { id: "hours", label: "Hours" }];
+  const tabs = [{ id: "menu", label: "Menu" }, { id: "events", label: "Private events" }, { id: "gallery", label: "Gallery" }, { id: "hours", label: "Hours" }];
   const current = tabs.some((tab) => tab.id === view) ? view : "menu";
 
   return (
@@ -47,7 +48,11 @@ export default async function PreviewPage({ params, searchParams }: PageProps<"/
         <div className="mt-10 border border-dashed border-gold/50">
           {current === "menu" ? <MenuView content={content} />
             : current === "events" ? <PrivateEventsView tiers={content.packages} />
-              : (
+              : current === "gallery" ? (
+                // Staff-only copies of the photos, so unpublished uploads can be previewed.
+                <GalleryView groups={content.gallery.map((group) => ({ ...group, photos: group.photos.map((photo) => (
+                  { ...photo, src: photo.src?.replace(/^\/media\//, "/admin/media/") })) }))} />
+              ) : (
                 <dl className="grid gap-4 p-6 text-ivory sm:grid-cols-[11rem_1fr]">
                   <dt className="text-xs font-semibold uppercase tracking-caps text-ivory-muted sm:pt-1">Dining</dt>
                   <dd>{formatHours(content.hours.dining)}</dd>

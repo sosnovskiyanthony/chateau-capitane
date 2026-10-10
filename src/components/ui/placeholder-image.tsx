@@ -28,6 +28,8 @@ export function PlaceholderImage({
         width={1200}
         height={900}
         priority={priority}
+        // The optimizer fetches without cookies, so staff-only previews are served as they are.
+        unoptimized={src.startsWith("/admin/")}
         className={`w-full object-cover ${aspect} ${className}`}
       />
     );

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContentEditorForm } from "@/components/admin/content-editor-form";
+import { PhotoFileInput } from "@/components/admin/photo-file-input";
+import { PlaceholderImage } from "@/components/ui/placeholder-image";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireStaff } from "@/lib/server/auth/session";
 import { draftDocument, getContentState } from "@/lib/server/content/content";
 import { LUNCH_COURSES, WEEKDAYS, type ContentDocument } from "@/lib/server/content/document";
-import { BLANK_ROWS, findSection, formatDollars } from "@/lib/server/content/editor";
+import { BLANK_PHOTOS, BLANK_ROWS, findSection, formatDollars } from "@/lib/server/content/editor";
 import { getPersistenceConfiguration } from "@/lib/server/inquiries/persistence";
 
 const linkClasses = "underline decoration-gold/60 underline-offset-4 hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
@@ -139,6 +141,55 @@ export default async function ContentSectionPage({ params }: PageProps<"/admin/c
               <label className="inline-flex min-h-11 items-center gap-2 text-sm text-ivory">
                 <input type="checkbox" name={`item_${row}_remove`} className="size-5 accent-gold" />
                 Remove this dish
+              </label>
+            ) : null}
+          </fieldset>
+        ))}
+      </>
+    );
+  } else if (section.kind === "gallery") {
+    const group = document.gallery[section.index];
+    title = `Gallery: ${group.name}`;
+    fields = (
+      <>
+        <Text name="name" label="Section name" value={group.name} max={80} required />
+        <Text name="description" label="Section note (optional)" value={group.description} max={400} />
+        <p className="text-sm text-ivory-muted">
+          Photos you add are private until you publish the draft. Photos must be from 2026 or later; enter when each was
+          taken or posted, and a link to the original post if there is one.
+        </p>
+        {[...group.photos, ...Array.from({ length: BLANK_PHOTOS }, () => undefined)].map((photo, row) => (
+          <fieldset key={row} className="grid gap-4 border-t border-ivory/15 pt-6 sm:grid-cols-2">
+            <legend className="text-sm font-semibold text-gold">{photo ? `Photo ${row + 1}` : "New photo (choose a file to add)"}</legend>
+            {photo ? (
+              <div className="sm:col-span-2">
+                <PlaceholderImage label={photo.alt} aspect={photo.aspect} className="max-w-48"
+                  src={photo.media ? `/admin/media/${photo.media}` : photo.src} />
+                <p className="mt-2 text-xs text-ivory-muted">
+                  {photo.media ? `Uploaded photo, from ${photo.sourceDate}${photo.sourceUrl ? ` · ${photo.sourceUrl}` : ""}`
+                    : photo.src ? "Photo from the original site" : "No photo yet; the page shows a labelled placeholder."}
+                </p>
+              </div>
+            ) : null}
+            <Text name={`photo_${row}_alt`} label="Description for screen readers" value={photo?.alt} max={200} required={Boolean(photo)}
+              hint="What the photo shows." />
+            <Text name={`photo_${row}_caption`} label="Caption (optional)" value={photo?.caption} max={160}
+              hint="Shown under the photo." />
+            <div className="sm:col-span-2">
+              <label htmlFor={`photo_${row}_file`} className={labelClasses}>{photo ? "Replace the photo (optional)" : "Photo"}</label>
+              <PhotoFileInput id={`photo_${row}_file`} name={`photo_${row}_file`} className={`${fieldClasses} file:mr-4 file:border-0 file:bg-gold file:px-3 file:py-1.5 file:text-ink-950`} />
+              <p className="text-xs text-ivory-muted">JPEG, PNG or WebP. Large photos are shrunk automatically. Add one or two photos per save.</p>
+            </div>
+            <div>
+              <label htmlFor={`photo_${row}_date`} className={labelClasses}>Date taken or posted</label>
+              <input id={`photo_${row}_date`} name={`photo_${row}_date`} type="date" min="2026-01-01" className={fieldClasses} />
+              <p className="mt-1.5 text-xs text-ivory-muted">Needed when you choose a file.</p>
+            </div>
+            <Text name={`photo_${row}_url`} label="Link to the original post (optional)" max={500} />
+            {photo ? (
+              <label className="inline-flex min-h-11 items-center gap-2 text-sm text-ivory">
+                <input type="checkbox" name={`photo_${row}_remove`} className="size-5 accent-gold" />
+                Remove this photo from the gallery
               </label>
             ) : null}
           </fieldset>

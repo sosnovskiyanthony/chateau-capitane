@@ -1,3 +1,4 @@
+import { getPhotoGroups, PHOTO_ASPECTS, type PhotoGroup } from "@/lib/data/gallery";
 import { getLunchSpecialCourses, getMenuCategories, menuNotes, type MenuCategory, type PrixFixeCourse } from "@/lib/data/menu";
 import { getPrivateEventTiers, type BanquetTier } from "@/lib/data/private-events";
 import { site, type OpeningHours, type Weekday } from "@/lib/data/site";
@@ -15,7 +16,12 @@ export type ContentDocument = {
   menuNotes: string[];
   packages: { id: string; name: string; pricePerPersonCents: number; summary: string; minGuests?: number;
     courses: { label: string; items: string[] }[] }[];
+  gallery: { id: string; name: string; description?: string; photos: GalleryPhoto[] }[];
 };
+
+/** A gallery entry: a built-in photo (`src`), an uploaded one (`media` + where it came from), or a placeholder (neither). */
+export type GalleryPhoto = { id: string; alt: string; caption?: string; aspect: string; feature?: boolean;
+  src?: string; media?: string; sourceDate?: string; sourceUrl?: string };
 
 /** What pages render: the existing data shapes, prices in dollars. */
 export type SiteContent = {
@@ -25,6 +31,7 @@ export type SiteContent = {
   menuCategories: MenuCategory[];
   menuNotes: string[];
   packages: BanquetTier[];
+  gallery: PhotoGroup[];
 };
 
 export const WEEKDAYS: readonly Weekday[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -36,6 +43,10 @@ const MAX_CENTS = 1_000_000;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 // Control characters and Unicode line/paragraph separators: every field is a single line.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const BUILT_IN_PHOTO = /^\/photos\/[a-z0-9][a-z0-9._-]{0,80}$/;
+/** New photos must come from 2026 or later. */
+export const EARLIEST_PHOTO_DATE = "2026-01-01";
 const CONTROL = /[\p{Cc}\p{Zl}\p{Zp}]/u;
 
 export class ContentError extends Error {}
@@ -70,6 +81,57 @@ function list<T>(value: unknown, min: number, max: number, label: string, each: 
 
 function unique(values: string[], label: string) {
   if (new Set(values).size !== values.length) fail(`${label} has duplicates.`);
+}
+
+/** A real calendar date, YYYY-MM-DD, from 2026 up to two days ahead (UTC, allowing for time zones). */
+export function photoDate(value: unknown, label: string): string {
+  const result = typeof value === "string" ? value : "";
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(result) ? new Date(`${result}T00:00:00Z`) : null;
+  if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== result) fail(`${label} must be a date.`);
+  if (result < EARLIEST_PHOTO_DATE) fail(`${label} must be in 2026 or later.`);
+  if (parsed!.getTime() > Date.now() + 2 * 86_400_000) fail(`${label} cannot be in the future.`);
+  return result;
+}
+
+export function photoUrl(value: unknown, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  const result = text(value, 500, label);
+  if (!/^https:\/\/[^\s]+$/.test(result)) fail(`${label} must start with https://.`);
+  return result;
+}
+
+const builtInGallery = () => getPhotoGroups().map((group) => ({ ...group,
+  photos: group.photos.map((photo) => ({ ...photo })) }));
+
+function gallery(value: unknown): ContentDocument["gallery"] {
+  return list(value, 1, 10, "Gallery sections", (raw) => {
+    if (!isObject(raw)) return fail("A gallery section is missing.");
+    const name = text(raw.name, 80, "Gallery section name");
+    return {
+      id: typeof raw.id === "string" && SLUG.test(raw.id) && raw.id.length <= 60 ? raw.id : fail(`${name} has an invalid ID.`),
+      name,
+      description: optionalText(raw.description, 400, `${name} description`),
+      photos: list(raw.photos, 0, 60, `${name} photos`, (photo): GalleryPhoto => {
+        if (!isObject(photo)) return fail(`A photo in ${name} is missing.`);
+        const alt = text(photo.alt, 200, `A photo description in ${name}`);
+        const aspect = PHOTO_ASPECTS.includes(photo.aspect as never) ? photo.aspect as string : fail(`${alt} has an unknown shape.`);
+        if (photo.feature !== undefined && typeof photo.feature !== "boolean") fail(`${alt} has an invalid layout.`);
+        if (photo.src !== undefined && photo.media !== undefined) fail(`${alt} has two pictures.`);
+        const entry: GalleryPhoto = {
+          id: typeof photo.id === "string" && SLUG.test(photo.id) && photo.id.length <= 60 ? photo.id : fail(`${alt} has an invalid ID.`),
+          alt, caption: optionalText(photo.caption, 160, `${alt} caption`), aspect, feature: photo.feature as boolean | undefined,
+        };
+        if (photo.src !== undefined) {
+          entry.src = typeof photo.src === "string" && BUILT_IN_PHOTO.test(photo.src) ? photo.src : fail(`${alt} has an invalid picture.`);
+        } else if (photo.media !== undefined) {
+          entry.media = typeof photo.media === "string" && UUID.test(photo.media) ? photo.media : fail(`${alt} has an invalid picture.`);
+          entry.sourceDate = photoDate(photo.sourceDate, `${alt}: the date taken`);
+          entry.sourceUrl = photoUrl(photo.sourceUrl, `${alt}: the source link`);
+        }
+        return entry;
+      }),
+    };
+  });
 }
 
 function hours(value: unknown, label: string): OpeningHours {
@@ -145,7 +207,11 @@ export function validateDocument(input: unknown): ContentDocument {
         }),
       };
     }),
+    // Revisions saved before the gallery was editable have no gallery: they show the built-in one.
+    gallery: gallery(input.gallery === undefined ? builtInGallery() : input.gallery),
   };
+  unique(document.gallery.map((group) => group.id), "Gallery section IDs");
+  unique(document.gallery.flatMap((group) => group.photos.map((photo) => photo.id)), "Gallery photo IDs");
   unique(document.menuCategories.map((category) => category.id), "Menu section IDs");
   unique(document.packages.map((tier) => tier.id), "Package IDs");
   for (const tier of document.packages) unique(tier.courses.map((course) => course.label), `${tier.name} course names`);
@@ -168,6 +234,7 @@ export function staticDocument(): ContentDocument {
       items: category.items.map(({ price, ...item }) => ({ ...item, priceCents: price === undefined ? undefined : toCents(price) })) })),
     menuNotes: [...menuNotes],
     packages: getPrivateEventTiers().map(({ pricePerPerson, ...tier }) => ({ ...tier, pricePerPersonCents: toCents(pricePerPerson) })),
+    gallery: builtInGallery(),
   });
 }
 
@@ -180,5 +247,8 @@ export function toSiteContent(document: ContentDocument): SiteContent {
       items: category.items.map(({ priceCents, ...item }) => ({ ...item, price: priceCents === undefined ? undefined : dollars(priceCents) })) })),
     menuNotes: document.menuNotes,
     packages: document.packages.map(({ pricePerPersonCents, ...tier }) => ({ ...tier, pricePerPerson: dollars(pricePerPersonCents) })),
+    gallery: document.gallery.map((group) => ({ ...group, photos: group.photos.map((photo) => (
+      { id: photo.id, alt: photo.alt, caption: photo.caption, aspect: photo.aspect, feature: photo.feature,
+        src: photo.media ? `/media/${photo.media}` : photo.src })) })),
   };
 }

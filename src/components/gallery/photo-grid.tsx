@@ -9,11 +9,18 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
           key={photo.id}
           className={photo.feature ? "sm:col-span-2" : undefined}
         >
-          <PlaceholderImage
-            label={photo.alt}
-            aspect={photo.aspect}
-            src={photo.src}
-          />
+          <figure>
+            <PlaceholderImage
+              label={photo.alt}
+              aspect={photo.aspect}
+              src={photo.src}
+            />
+            {photo.caption ? (
+              <figcaption className="mt-3 text-sm leading-6 text-ivory-muted">
+                {photo.caption}
+              </figcaption>
+            ) : null}
+          </figure>
         </li>
       ))}
     </ul>

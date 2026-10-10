@@ -538,13 +538,72 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       } finally { await server.end(); }
     });
 
+    await t.test("media: photos are staff-only to add, private until a live version lists them, and well-formed", async () => {
+      const staff = randomUUID(), revoked = randomUUID();
+      await admin.query("insert into inquiry_private.staff_members(user_id, role) values ($1,'staff')", [staff]);
+      const call = async (fn, args) => (await asService(`select public.${fn}(${args.map((_, i) => `$${i + 1}`).join(",")}) r`, args))[0].r;
+      const webp = (extra = "photo") => Buffer.concat([Buffer.from("RIFF"), Buffer.from([20, 0, 0, 0]), Buffer.from("WEBP"), Buffer.from(extra)]);
+      const add = (data = webp(), date = "2026-03-02", url = "https://example.com/post/1", who = staff) =>
+        call("staff_add_media", [who, "editor@example.invalid", data.toString("base64"), 1200, 800, date, url]);
+      const published = (id) => call("published_media", [id]);
+      const save = (document) => call("staff_content_state", [staff]).then((s) => call("staff_save_content_draft", [staff, "editor@example.invalid", s.draft?.id ?? null, document]));
+      const publish = (id) => call("staff_publish_content", [staff, "editor@example.invalid", id]);
+      const listing = (id) => ({ gallery: [{ id: "rooms", photos: [{ id: "p-1", media: id }, { id: "p-2", src: "/photos/a.jpg" }] }] });
+
+      const photo = await add();
+      assert.equal(photo.kind, "added");
+      // Staff can read it; the public cannot, whether or not anything is published.
+      assert.deepEqual(await call("staff_media", [staff, photo.id]), { type: "image/webp", data: webp().toString("base64") });
+      assert.equal(await call("staff_media", [staff, randomUUID()]), null);
+      assert.equal(await published(photo.id), null);
+      const draft = await save(listing(photo.id));
+      assert.equal(await published(photo.id), null);
+      // Public once a live version lists it (the raw bytes round-trip); private again after rolling back.
+      assert.equal((await publish(draft.id)).kind, "published");
+      assert.deepEqual(await published(photo.id), { type: "image/webp", data: webp().toString("base64") });
+      assert.equal(await published(randomUUID()), null);
+      const other = await add(webp("other"));
+      assert.equal(await published(other.id), null);
+      const without = await save({ gallery: [{ id: "rooms", photos: [{ id: "p-2", src: "/photos/a.jpg" }] }] });
+      assert.equal((await publish(without.id)).kind, "published");
+      assert.equal(await published(photo.id), null);
+      assert.equal((await publish(draft.id)).kind, "published");
+      assert.notEqual(await published(photo.id), null);
+
+      // Only well-formed WebP from 2026 on, with https sources; large or oversized rows are refused.
+      for (const [data, date, url] of [[Buffer.from("<svg onload=alert(1)>"), "2026-03-02", null], [webp(), "2025-12-31", null],
+        [webp(), "2026-03-02", "http://example.com/a"], [webp(), "2026-03-02", "https://exa mple.com"],
+        [Buffer.concat([webp(), Buffer.alloc(2097152)]), "2026-03-02", null]]) {
+        await assert.rejects(add(data, date, url), (e) => e.code === "23514");
+      }
+      await assert.rejects(call("staff_add_media", [staff, "x", "not base64!", 1200, 800, "2026-03-02", null]), (e) => e.code === "22023");
+      await assert.rejects(call("staff_add_media", [staff, "x", webp().toString("base64"), 5000, 800, "2026-03-02", null]), (e) => e.code === "23514");
+
+      // Only current staff; the server key cannot write or change assets directly.
+      for (const [fn, args] of [["staff_media", [revoked, photo.id]], ["staff_add_media", [revoked, "x", webp().toString("base64"), 10, 10, "2026-03-02", null]],
+        ["staff_add_media", [null, "x", webp().toString("base64"), 10, 10, "2026-03-02", null]]]) {
+        await assert.rejects(call(fn, args), (e) => e.code === "42501");
+      }
+      const server = await connect();
+      try {
+        await server.query("set role service_role");
+        await rejectsSql(server, "insert into inquiry_private.media_assets(content_type, data, width, height, source_date, uploader_id, uploader_email) values ('image/webp', 'x', 1, 1, '2026-01-01', $1, 'x')", [staff], "42501");
+        await rejectsSql(server, "update inquiry_private.media_assets set data = '\\x00'", [], "42501");
+        await rejectsSql(server, "delete from inquiry_private.media_assets", [], "42501");
+      } finally { await server.end(); }
+
+      // The library is capped at 500 photos.
+      await admin.query("insert into inquiry_private.media_assets(content_type, data, width, height, source_date, uploader_id, uploader_email) select 'image/webp', $1, 1, 1, '2026-01-01', $2, 'bulk' from generate_series(1, 500)", [webp(), staff]);
+      assert.deepEqual(await add(), { kind: "full" });
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
         for (const role of ["anon", "authenticated"]) {
           await denied.query(`set role ${role}`);
           await denied.query("select set_config('request.jwt.claims', '{\"role\":\"authenticated\",\"user_metadata\":{\"role\":\"owner\"}}', false)");
-          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events", "content_revisions", "content_publications"]) {
+          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events", "content_revisions", "content_publications", "media_assets"]) {
             await rejectsSql(denied, `select * from inquiry_private.${table}`, [], "42501");
             await rejectsSql(denied, `delete from inquiry_private.${table}`, [], "42501");
           }
@@ -564,11 +623,14 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
           await rejectsSql(denied, "select public.staff_content_revision($1,1)", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_save_content_draft($1,'x',null,'{}')", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_publish_content($1,'x',1)", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.published_media($1)", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.staff_media($1,$1)", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.staff_add_media($1,'x','AAAA',1,1,'2026-03-02',null)", [randomUUID()], "42501");
           await denied.query("reset role");
         }
         // Temporary test-only grants demonstrate RLS independently from missing privileges.
         await admin.query("begin; grant usage on schema inquiry_private to authenticated; grant select on all tables in schema inquiry_private to authenticated; set local role authenticated");
-        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events", "content_revisions", "content_publications"]) {
+        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events", "content_revisions", "content_publications", "media_assets"]) {
           assert.equal((await admin.query(`select * from inquiry_private.${table}`)).rowCount, 0);
         }
         await admin.query("rollback");

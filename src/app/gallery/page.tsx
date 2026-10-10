@@ -1,57 +1,24 @@
 import type { Metadata } from "next";
 
-import { PhotoGrid } from "@/components/gallery/photo-grid";
-import { Container } from "@/components/layout/container";
-import { CallCta } from "@/components/ui/call-cta";
-import { CtaLink } from "@/components/ui/cta-link";
-import { PageHeader } from "@/components/ui/page-header";
-import { getPhotoGroups, hasGalleryPhotos } from "@/lib/data/gallery";
+import { GalleryView } from "@/components/gallery/gallery-view";
+import { hasGalleryPhotos } from "@/lib/data/gallery";
+import { getSiteContent } from "@/lib/server/content/content";
 import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  ...pageMetadata({
-    title: "Gallery",
-    description:
-      "Photographs of the dining room, the private banquet rooms, and the food at Château Capitaine in Brooklyn.",
-    path: "/gallery",
-  }),
-  // Kept out of search until real photos replace the placeholders.
-  ...(hasGalleryPhotos() ? {} : { robots: { index: false, follow: true } }),
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { gallery } = await getSiteContent();
+  return {
+    ...pageMetadata({
+      title: "Gallery",
+      description:
+        "Photographs of the dining room, the private banquet rooms, and the food at Château Capitaine in Brooklyn.",
+      path: "/gallery",
+    }),
+    // Kept out of search until real photos replace the placeholders.
+    ...(hasGalleryPhotos(gallery) ? {} : { robots: { index: false, follow: true } }),
+  };
+}
 
-export default function GalleryPage() {
-  const groups = getPhotoGroups();
-
-  return (
-    <Container className="pb-20 pt-14 md:pb-28 md:pt-20">
-      <PageHeader
-        eyebrow="Photographs"
-        title="Gallery"
-        intro="The rooms, the tables we set for parties, and what comes out of the kitchen."
-      />
-
-      <div className="mt-16 space-y-20 md:mt-20 md:space-y-24">
-        {groups.map((group) => (
-          <section key={group.id} id={group.id}>
-            <h2 className="font-serif text-3xl leading-tight tracking-tight text-ivory sm:text-4xl">
-              {group.name}
-            </h2>
-            {group.description ? (
-              <p className="mt-3 max-w-prose leading-7 text-ivory-muted">
-                {group.description}
-              </p>
-            ) : null}
-            <div className="mt-8">
-              <PhotoGrid photos={group.photos} />
-            </div>
-          </section>
-        ))}
-      </div>
-
-      <div className="mt-20 flex flex-wrap gap-3 md:mt-24">
-        <CtaLink href="/private-events">See banquet menus</CtaLink>
-        <CallCta variant="secondary" />
-      </div>
-    </Container>
-  );
+export default async function GalleryPage() {
+  return <GalleryView groups={(await getSiteContent()).gallery} />;
 }

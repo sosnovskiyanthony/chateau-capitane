@@ -45,12 +45,13 @@ export default async function ContentPage({ searchParams }: PageProps<"/admin/co
     { slug: "hours", label: "Hours, lunch special and dining policies" },
     ...document.menuCategories.map((category) => ({ slug: `menu-${category.id}`, label: `Menu: ${category.name}` })),
     ...document.packages.map((tier) => ({ slug: `package-${tier.id}`, label: `Banquet: ${tier.name} $${tier.pricePerPersonCents / 100}` })),
+    ...document.gallery.map((group) => ({ slug: `gallery-${group.id}`, label: `Gallery: ${group.name}` })),
   ];
 
   return (
     <>
       <PageHeader eyebrow="Staff" title="Website content"
-        intro="Edit menus, hours and banquet packages as a draft, preview it, then publish. The phone number, OpenTable link and lunch rules (three courses, beverages not included) are fixed." />
+        intro="Edit menus, hours, banquet packages and gallery photos as a draft, preview it, then publish. The phone number, OpenTable link and lunch rules (three courses, beverages not included) are fixed." />
       {back}
       <p role="status" className="mt-6 min-h-6 text-sm text-gold-bright">{message}</p>
 

@@ -1,12 +1,14 @@
 import type { MetadataRoute } from "next";
 
 import { hasGalleryPhotos } from "@/lib/data/gallery";
+import { getLayoutContent } from "@/lib/server/content/content";
 import { footerLinks, navLinks, site } from "@/lib/data/site";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const { gallery } = await getLayoutContent();
   // Matches the gallery's noindex until real photos exist.
   const links = [...navLinks, ...footerLinks].filter(
-    (link) => link.href !== "/gallery" || hasGalleryPhotos(),
+    (link) => link.href !== "/gallery" || hasGalleryPhotos(gallery),
   );
 
   return [

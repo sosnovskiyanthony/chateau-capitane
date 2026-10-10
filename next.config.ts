@@ -26,6 +26,11 @@ const legacyRedirects = [
 ];
 
 const nextConfig: NextConfig = {
+  // Gallery photo uploads; Vercel itself rejects request bodies over 4.5 MB.
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
+  // Gallery photos are served with a one-hour cache; the image optimizer would otherwise keep a photo taken
+  // off the gallery for four hours.
+  images: { minimumCacheTTL: 3600 },
   async redirects() {
     return legacyRedirects.map((redirect) => ({ ...redirect, permanent: true }));
   },
