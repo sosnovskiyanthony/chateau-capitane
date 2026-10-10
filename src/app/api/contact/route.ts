@@ -1,6 +1,7 @@
 import { site } from "@/lib/data/site";
 import { handleContact } from "@/lib/server/contact";
 import { getSiteContent } from "@/lib/server/content/content";
+import { requestLogger } from "@/lib/server/ops";
 import { checkContactLimit } from "@/lib/server/inquiries/abuse-limit";
 import { getPersistenceConfiguration, recordContactInquiry } from "@/lib/server/inquiries/persistence";
 
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     }),
     limit: checkContactLimit,
     record: recordContactInquiry,
-    logError: (code) => console.error("Contact intake:", code),
+    logError: requestLogger("contact_intake", request),
     packages: async () => (await getSiteContent()).packages,
   });
 }

@@ -597,6 +597,18 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       assert.deepEqual(await add(), { kind: "full" });
     });
 
+    await t.test("ops snapshot: counts and ages only, stale due job detected, server-only", async () => {
+      const before = (await asService("select public.ops_snapshot() s"))[0].s;
+      const created = await record();
+      await admin.query("update inquiry_private.notification_jobs set available_at = now() - interval '2 hours' where inquiry_id = $1", [created.inquiryId]);
+      const after = (await asService("select public.ops_snapshot() s"))[0].s;
+      assert.ok(after.oldestDueJobSeconds >= 7100);
+      assert.equal(after.jobs.pending, (before.jobs.pending ?? 0) + 1);
+      assert.equal(after.inquiries24h, before.inquiries24h + 1);
+      assert.doesNotMatch(JSON.stringify(after), /example\.invalid|Synthetic/);
+      await admin.query("update inquiry_private.notification_jobs set available_at = now() + interval '1 hour' where inquiry_id = $1", [created.inquiryId]);
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
@@ -618,6 +630,7 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
           await rejectsSql(denied, "select public.staff_get_inquiry($1,$1)", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_set_inquiry_status($1,'x',$1,1,'resolved')", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_add_inquiry_note($1,'x',$1,'y')", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.ops_snapshot()", [], "42501");
           await rejectsSql(denied, "select public.published_content()", [], "42501");
           await rejectsSql(denied, "select public.staff_content_state($1)", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_content_revision($1,1)", [randomUUID()], "42501");

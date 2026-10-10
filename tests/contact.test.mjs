@@ -263,6 +263,7 @@ test("the Next route uses current server environment and the site recipient fall
     "@/lib/server/contact": handler,
     "@/lib/data/site": { site: { email: "fallback@example.test" } },
     "@/lib/server/inquiries/abuse-limit": { checkContactLimit: async () => ({ kind: "allowed" }) },
+    "@/lib/server/ops": { requestLogger: () => () => {} },
     "@/lib/server/inquiries/persistence": {
       getPersistenceConfiguration: () => persistence,
       recordContactInquiry: async (inquiry, _key, settings) => { calls.push({ ...settings, inquiry }); return { kind: "recorded", inquiryId: "id" }; },
