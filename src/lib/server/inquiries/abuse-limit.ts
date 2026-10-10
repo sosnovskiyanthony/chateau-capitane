@@ -18,7 +18,7 @@ export type LimitResult = { kind: "allowed" } | { kind: "limited"; retryAfter: n
  * shares one "unattributed" bucket; that is conservative, never a bypass.
  * IPv6 is reduced to its /64 because one subscriber usually controls the whole /64.
  */
-export function clientNetwork(request: Request, env: NodeJS.ProcessEnv = process.env): string {
+export function clientNetwork(request: Pick<Request, "headers">, env: NodeJS.ProcessEnv = process.env): string {
   if (env.VERCEL !== "1") return "unattributed";
   const ip = request.headers.get("x-vercel-forwarded-for")?.split(",")[0].trim() ?? "";
   const version = isIP(ip);
@@ -56,6 +56,11 @@ export async function checkContactLimit(
     p_subject_limit: CONTACT_LIMITS.subjectLimit, p_subject_seconds: CONTACT_LIMITS.subjectSeconds,
     p_global_limit: CONTACT_LIMITS.globalLimit, p_global_seconds: CONTACT_LIMITS.globalSeconds,
   }, 256, options.fetch);
+  return parseLimitResult(result);
+}
+
+/** Shared reply check for the limit RPCs; anything unexpected is "unavailable" (fail closed). */
+export function parseLimitResult(result: unknown): LimitResult {
   if (result && typeof result === "object" && "allowed" in result) {
     if (result.allowed === true) return { kind: "allowed" };
     if (result.allowed === false && "retryAfter" in result && Number.isInteger(result.retryAfter) &&

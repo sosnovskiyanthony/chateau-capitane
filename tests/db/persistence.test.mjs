@@ -306,13 +306,51 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       }
     });
 
+    await t.test("staff: membership is read-only to the server; roles come from the table, never JWT metadata; login limits count", async () => {
+      const owner = randomUUID(), staff = randomUUID(), stranger = randomUUID();
+      await admin.query("insert into inquiry_private.staff_members(user_id, role) values ($1,'owner'),($2,'staff')", [owner, staff]);
+      const role = async (id) => (await asService("select public.staff_role($1) r", [id]))[0].r;
+      assert.equal(await role(owner), "owner");
+      assert.equal(await role(staff), "staff");
+      assert.equal(await role(stranger), null);
+      await rejectsSql(admin, "insert into inquiry_private.staff_members values ($1,'editor')", [stranger], "23514");
+      const server = await connect();
+      try {
+        await server.query("set role service_role");
+        // Claimed metadata changes nothing: only table rows count.
+        await server.query("select set_config('request.jwt.claims', $1, false)",
+          [JSON.stringify({ sub: stranger, user_metadata: { role: "owner" }, app_metadata: { role: "owner" } })]);
+        assert.equal((await server.query("select public.staff_role($1) r", [stranger])).rows[0].r, null);
+        // No code path can grant, change or remove a role.
+        await rejectsSql(server, "insert into inquiry_private.staff_members values ($1,'owner')", [stranger], "42501");
+        await rejectsSql(server, "update inquiry_private.staff_members set role='owner' where user_id=$1", [staff], "42501");
+        await rejectsSql(server, "delete from inquiry_private.staff_members where user_id=$1", [owner], "42501");
+      } finally { await server.end(); }
+      // Revocation is a row delete by the database owner; the next check sees it.
+      await admin.query("delete from inquiry_private.staff_members where user_id=$1", [staff]);
+      assert.equal(await role(staff), null);
+
+      const login = async (subject, limit = 3) => (await asService("select public.check_login_limit($1,$2,900) r", [subject, limit]))[0].r;
+      const subject = randomBytes(32).toString("hex");
+      const results = await Promise.all(Array.from({ length: 6 }, () => login(subject)));
+      assert.equal(results.filter((r) => r.allowed).length, 3);
+      for (const r of results.filter((r) => !r.allowed)) assert.ok(r.retryAfter >= 1 && r.retryAfter <= 900);
+      assert.equal((await login(randomBytes(32).toString("hex"))).allowed, true);
+      // Login and contact counters never share a bucket.
+      assert.equal((await admin.query("select count(*)::int n from inquiry_private.rate_limit_hits where bucket = $1", ["login:" + subject])).rows[0].n, 1);
+      assert.equal((await admin.query("select count(*)::int n from inquiry_private.rate_limit_hits where bucket = $1", ["subject:" + subject])).rows[0].n, 0);
+      for (const args of [["not-hex", 5, 60], [subject, 0, 60], [subject, 5, 0], [subject, 5, 90000]]) {
+        await rejectsSql(admin, "select public.check_login_limit($1,$2,$3)", args, "22023");
+      }
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
         for (const role of ["anon", "authenticated"]) {
           await denied.query(`set role ${role}`);
           await denied.query("select set_config('request.jwt.claims', '{\"role\":\"authenticated\",\"user_metadata\":{\"role\":\"owner\"}}', false)");
-          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits"]) {
+          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits", "staff_members"]) {
             await rejectsSql(denied, `select * from inquiry_private.${table}`, [], "42501");
             await rejectsSql(denied, `delete from inquiry_private.${table}`, [], "42501");
           }
@@ -321,11 +359,13 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
           await rejectsSql(denied, "select public.complete_notification_job($1,$2,'accepted','x',null)", [randomUUID(), randomUUID()], "42501");
           await rejectsSql(denied, "select public.record_delivery_event('msg_x','email.sent','x',null,now())", [], "42501");
           await rejectsSql(denied, "select public.check_contact_limit(repeat('a',64),null,5,60,5,60)", [], "42501");
+          await rejectsSql(denied, "select public.staff_role($1)", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.check_login_limit(repeat('a',64),5,60)", [], "42501");
           await denied.query("reset role");
         }
         // Temporary test-only grants demonstrate RLS independently from missing privileges.
         await admin.query("begin; grant usage on schema inquiry_private to authenticated; grant select on all tables in schema inquiry_private to authenticated; set local role authenticated");
-        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits"]) {
+        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits", "staff_members"]) {
           assert.equal((await admin.query(`select * from inquiry_private.${table}`)).rowCount, 0);
         }
         await admin.query("rollback");

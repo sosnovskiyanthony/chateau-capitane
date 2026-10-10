@@ -20,7 +20,7 @@ Pass only a valid `NormalizedInquiry`, an optional UUID v4 key and server-contro
 
 Keyless requests create separate units. Key retention (B03b): keys stay reserved indefinitely until the B11 retention policy and are never reused or released; a reused key with a different payload returns `conflict` (HTTP 409). Keyless requests are each a new inquiry, so a lost acknowledgment followed by a keyless retry can create a duplicate; the site form always sends a key. Dates remain validated `YYYY-MM-DD` strings, including ISO year 0000 accepted by the current parser; no timezone conversion occurs. Timestamps use `timestamptz`. No inquiry/key/job is committed when a write fails. A lost HTTP acknowledgment may follow a commit, so the caller returns `unavailable`; retry using the original key to resolve uncertainty. Keyless callers cannot resolve this safely through deduplication.
 
-No staff membership/invitations or retention cleanup are implemented. [Provider decision](../docs/plans/backend-provider-decision.md), [B02 progress](../docs/plans/b02-persistence.md).
+Staff membership: see "Staff access (B06)" below. No retention cleanup is implemented. [Provider decision](../docs/plans/backend-provider-decision.md), [B02 progress](../docs/plans/b02-persistence.md).
 
 ## Notification worker
 
@@ -48,3 +48,26 @@ Unmatched tagged events are capped at 10,000; above that, and whenever storage i
 - **Retries.** A request whose `Idempotency-Key` is already recorded skips counting (it cannot add a job). Attempts that end in 409 or 503 still count.
 - **Replies.** Over a limit: `429` with `Retry-After` (seconds to the window end) and a "call us" message. Limiter unreachable or any unexpected reply: fail closed with `503` and the phone fallback (`contact_limiter_unavailable`), never unlimited acceptance. Both are logged as static codes; B11 monitoring should alert on them.
 - **Not included.** Invalid or oversized requests are rejected without counting; floods of those are left to Vercel's firewall. No CAPTCHA until observed abuse warrants one.
+
+## Staff access (B06)
+
+`migrations/202610100001_staff_access.sql` adds `staff_members` (user ID, role `owner` or `staff`) and `public.staff_role(user)`. `service_role` can only **read** it: rows are added, changed or removed only by the database owner (Supabase SQL editor or a migration), so no website request and no staff member can grant or change a role. Auth user metadata (`user_metadata`/`app_metadata`) is never consulted. It also adds `check_login_limit`, which reuses the B05 counters under `login:<HMAC>` buckets (10 sign-in or email-link attempts per client network per 15 minutes, `LOGIN_LIMIT` in `src/lib/server/auth/staff-auth.ts`; fails closed).
+
+Code: `src/lib/server/auth/staff-auth.ts` (Supabase Auth REST calls over fetch, no client library), `src/lib/server/auth/session.ts` (cookies, `requireStaff`), `src/app/admin/` (pages, Server Functions, `/admin/refresh`).
+
+- **Session.** Tokens live only in `httpOnly`, `SameSite=Lax`, `Path=/admin` cookies (`Secure` in production); page scripts cannot read them and public pages never receive them. The access cookie ends a minute before the token; `/admin/refresh` then renews it with the refresh token and returns to the page. 12 idle hours end the sign-in.
+- **Every page and action** calls `requireStaff`, which asks Supabase Auth to confirm the session (`GET /auth/v1/user`; signed-out or deleted sessions fail there) and re-reads `staff_role`. Removing a row therefore blocks the person on their next page load or action. A rejected or revoked session is sent to `/admin/refresh?end=1`, which revokes it at Supabase and clears the cookies. Admin responses are `no-store` and `noindex`.
+- **Sign-out** revokes the session at Supabase using the refresh token, so it works after the access cookie has expired.
+- **CSRF.** Sign-in, password and sign-out are Next.js Server Functions (POST only; Next.js rejects a mismatched `Origin`).
+- **Sign-in errors** use one message for wrong password, unknown email and non-staff accounts. A non-staff account that authenticates is signed straight out and receives no cookies.
+
+Setup at provisioning (needs owner authorization because it sends real email):
+
+1. Supabase Dashboard → Authentication → Sign In / Providers: turn **off** "Allow new users to sign up". Keep email provider on. Optionally set a session inactivity timeout.
+2. Authentication → URL Configuration: Site URL = the production site.
+3. Authentication → Email Templates, **Invite user** and **Reset password**: change the link to `{{ .SiteURL }}/admin/confirm?token_hash={{ .TokenHash }}&type=invite` (use `type=recovery` for reset). Opening the page changes nothing; the single-use token is spent only when the person submits a new password (at least 12 characters), so mail scanners cannot consume it. A rejected password still spends the link; send a new one.
+4. Invite the person (Authentication → Users → Invite), then grant access in the SQL editor: `insert into inquiry_private.staff_members (user_id, role) values ('<user id>', 'staff');` (`'owner'` for the owner).
+
+Revoke: `delete from inquiry_private.staff_members where user_id = '<user id>';` (takes effect on their next request; no data is removed). To also end their sessions, sign the user out or delete them under Authentication → Users. Emergency: deleting all rows closes the admin area for everyone.
+
+Not included yet: a "forgot password" form (the owner sends resets from the dashboard), multi-factor sign-in, and role management in the site (deliberately SQL-only). Login limits count per network; Supabase's own Auth limits see only the server's address, so heavy failed sign-ins from many networks can still trip them for everyone.
