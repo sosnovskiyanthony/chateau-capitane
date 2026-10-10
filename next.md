@@ -2,6 +2,18 @@
 
 Updated: 2026-10-10. Canonical rolling handoff.
 
+## Owner to-do list (deferred; nothing here blocks local work)
+
+Backend release (B12, see [docs/release-checklist.md](docs/release-checklist.md)): approve Vercel Pro + Supabase Pro (~$45/month) and Resend; verify the sending domain; choose the inquiry-receiving address; open a free uptime monitor (alerts to the owner's email); give names and emails of the first staff; authorize a staging Supabase project (B02c).
+
+SEO (done 2026-10-10: titles/descriptions, hero label, contact FAQ, schema; see git log). Still needs the owner:
+1. Neighborhood name guests use (Sheepshead Bay or Gravesend); then add it to the home "Visit us" heading and menu/contact copy.
+2. Facts to confirm before they appear on the site: parking, nearest subway, delivery, vegetarian/gluten-free dishes, happy hour.
+3. Star ratings and review counts for Yelp, Google and OpenTable (Yelp blocks automated reads; Google needs a paid API). Show them on the site as text with links; never in Google markup (self-published ratings are ignored and risk a penalty).
+4. Google Business Profile: primary category Russian restaurant, add Seafood restaurant and Banquet hall, one exact spelling of the name everywhere (site, Yelp, OpenTable use different spellings).
+5. Confirm schema price range ($$$) and whether to add the restaurant email to schema.
+6. Real photos with provenance for the About page; short descriptions for well-known dishes on the menu (owner wording).
+
 ## Objective and starting task
 
 Claude Code now builds (rules: [CLAUDE.md](CLAUDE.md), evidence: [docs/claude-workflow.md](docs/claude-workflow.md)); Codex reviews later. Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan → Build → Verify**. B01 complete; B02a/b committed (`a12f3f0`); dependency security slice done (Next 16.4.0).

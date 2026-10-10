@@ -27,7 +27,7 @@ export const site = {
   url: "https://www.chateaucapitaine.com",
   tagline: "Continuing a family tradition of excellence",
   description:
-    "A Brooklyn bar and grill serving seafood, Russian-style banquets, and weekday lunch specials on Coney Island Avenue.",
+    "Russian and seafood restaurant on Coney Island Avenue in Brooklyn: oysters, caviar, grilled fish, pelmeni, a weekday lunch special, and private Russian-style banquets.",
 
   address: {
     street,

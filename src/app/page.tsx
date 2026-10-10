@@ -8,14 +8,14 @@ import { SignatureDishes } from "@/components/home/signature-dishes";
 import { Container } from "@/components/layout/container";
 import { RestaurantSchema } from "@/components/restaurant-schema";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { site } from "@/lib/data/site";
+import { formatHours } from "@/lib/data/site";
 import { pageMetadata } from "@/lib/metadata";
 import { getSiteContent } from "@/lib/server/content/content";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { lunchSpecialPrice } = await getSiteContent();
+  const { hours, lunchSpecialPrice } = await getSiteContent();
   return pageMetadata({
-    description: `${site.name}: seafood, Russian-style banquets, and a three-course $${lunchSpecialPrice} weekday lunch special on Coney Island Avenue, Brooklyn.`,
+    description: `Oysters, caviar, grilled fish and Russian banquets on Coney Island Ave, Brooklyn. $${lunchSpecialPrice} three-course lunch, ${formatHours(hours.lunchSpecial)}. Reserve online.`,
     path: "/",
   });
 }

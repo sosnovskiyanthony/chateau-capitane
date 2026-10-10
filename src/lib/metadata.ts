@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { site } from "@/lib/data/site";
 
-export const defaultTitle = `${site.name} | Brooklyn Bar & Grill`;
+export const defaultTitle = `Russian Seafood Restaurant in Brooklyn | ${site.name}`;
 
 /** Served by `src/app/opengraph-image.tsx`. */
 export const shareImage = {
