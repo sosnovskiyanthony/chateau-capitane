@@ -1,0 +1,28 @@
+{
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "enabledMcpjsonServers": ["playwright"],
+  "permissions": {
+    "allow": [
+      "Bash(npm.cmd run lint*)",
+      "Bash(npm.cmd run build*)",
+      "Bash(npm.cmd test*)",
+      "Bash(npm.cmd run test:db*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "mcp__playwright"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(supabase db reset --linked*)",
+      "Bash(supabase db push*)",
+      "Bash(vercel deploy*)",
+      "Read(./.env)",
+      "Read(./.env.local)"
+    ]
+  }
+}

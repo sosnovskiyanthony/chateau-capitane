@@ -47,3 +47,5 @@ node_modules
 # Workspace-local package cache and disposable PostgreSQL fixtures.
 .npm-cache/
 .local-db-tests/
+# Claude Code personal overrides
+.claude/settings.local.json
