@@ -8,11 +8,13 @@ export type RecordInquiryResult =
   | { kind: "conflict" }
   | { kind: "unavailable" };
 
+/** Resend tag on every notification send, so delivery events find their job even after a lost response. */
+export const JOB_TAG = "notification_job";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SENDER = /^(?:[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+|[^<>\r\n]+ <[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+>)$/;
 
-/** Called only by the contact route (src/app/api/contact/route.ts). */
+/** Server-only routes: contact intake, notification cron and Resend webhook. */
 export function getPersistenceConfiguration(env: NodeJS.ProcessEnv = process.env): Configuration | null {
   const secretKey = env.SUPABASE_SECRET_KEY?.trim();
   if (!env.SUPABASE_URL || !secretKey?.startsWith("sb_secret_")) return null;
@@ -84,23 +86,30 @@ export async function callRpc(
       return undefined;
     }
     // Bound reads even if a proxy returns an unexpected body.
-    const reader = response.body?.getReader();
-    if (!reader) return undefined;
-    const chunks: Uint8Array[] = [];
-    let length = 0;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        length += value.byteLength;
-        if (length > maxBytes) { void reader.cancel().catch(() => {}); return undefined; }
-        chunks.push(value);
-      }
-    } finally { reader.releaseLock(); }
-    const bytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const bytes = await readBounded(response.body, maxBytes);
+    if (!bytes) return undefined;
     return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
   } catch { return undefined; }
   finally { clearTimeout(timeout); }
+}
+
+/** Reads a body up to maxBytes; null when missing or larger (stops reading at the limit). */
+export async function readBounded(body: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<Uint8Array | null> {
+  const reader = body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > maxBytes) { void reader.cancel().catch(() => {}); return null; }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return bytes;
 }

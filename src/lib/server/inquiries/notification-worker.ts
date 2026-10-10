@@ -1,5 +1,5 @@
 import "server-only";
-import { callRpc, type Configuration } from "./persistence";
+import { callRpc, JOB_TAG, type Configuration } from "./persistence";
 
 type Job = { job_id: string; lease_token: string; attempt: number; sender: string; recipient: string;
   reply_to: string; subject: string; body: string };
@@ -33,7 +33,7 @@ async function send(job: Job, apiKey: string, fetchImpl: typeof fetch): Promise<
         "Idempotency-Key": `notification/${job.job_id}` },
       signal: controller.signal,
       body: JSON.stringify({ from: job.sender, to: job.recipient, reply_to: job.reply_to,
-        subject: job.subject, text: job.body }),
+        subject: job.subject, text: job.body, tags: [{ name: JOB_TAG, value: job.job_id }] }),
     });
     if (response.ok) {
       const ack: unknown = await response.json().catch(() => null);

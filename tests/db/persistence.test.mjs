@@ -50,6 +50,8 @@ async function asService(sql, values = []) {
 const claim = (limit = 20, lease = 60) => asService("select * from public.claim_notification_jobs($1,$2)", [limit, lease]);
 const complete = async (job, outcome, messageId = null, error = outcome === "accepted" ? null : "test_error") =>
   (await asService("select public.complete_notification_job($1,$2,$3,$4,$5) ok", [job.job_id, job.lease_token, outcome, messageId, error]))[0].ok;
+const deliver = async (eventId, type, emailId, jobId = null, at = "2026-10-09T12:00:00Z") =>
+  (await asService("select public.record_delivery_event($1,$2,$3,$4,$5) r", [eventId, type, emailId, jobId, at]))[0].r;
 async function counts(client) {
   const result = await client.query(`select
     (select count(*)::int from inquiry_private.inquiries) inquiries,
@@ -225,24 +227,78 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       await rejectsSql(admin, "select * from public.claim_notification_jobs(5, 5)", [], "22023");
     });
 
+    await t.test("delivery: tagged events resolve lost responses once; status never regresses; untrusted links are refused", async () => {
+      const jobOf = async (inquiryId) => (await admin.query("select id from inquiry_private.notification_jobs where inquiry_id=$1", [inquiryId])).rows[0].id;
+      const job = async (id) => (await admin.query("select state, provider_message_id, last_error from inquiry_private.notification_jobs where id=$1", [id])).rows[0];
+      const status = async (id) => (await admin.query("select delivery_status from inquiry_private.job_delivery_status where job_id=$1", [id])).rows[0]?.delivery_status;
+
+      await admin.query("update inquiry_private.notification_jobs set state='failed' where state='pending'");
+      // Lost send response after the window: uncertain until a signed event proves acceptance.
+      const lost = await jobOf((await record()).inquiryId);
+      await admin.query("update inquiry_private.notification_jobs set state='uncertain', maybe_sent=true, last_error='provider_timeout' where id=$1", [lost]);
+      assert.equal(await deliver("msg_a", "email.delivered", "email-lost", lost, "2026-10-09T12:00:05Z"), "recorded");
+      assert.deepEqual(await job(lost), { state: "accepted", provider_message_id: "email-lost", last_error: null });
+      const dupes = await Promise.all(Array.from({ length: 5 }, () => deliver("msg_a", "email.delivered", "email-lost", lost)));
+      assert.deepEqual(dupes, Array(5).fill("duplicate"));
+      // Delayed earlier events arrive after delivery: stored, but status stays delivered.
+      assert.equal(await deliver("msg_b", "email.sent", "email-lost", lost, "2026-10-09T12:00:01Z"), "recorded");
+      assert.equal(await deliver("msg_c", "email.delivery_delayed", "email-lost", null, "2026-10-09T12:00:03Z"), "recorded", "matched by message ID without a tag");
+      assert.equal(await status(lost), "email.delivered");
+      assert.equal(await deliver("msg_d", "email.complained", "email-lost", lost, "2026-10-09T12:10:00Z"), "recorded");
+      assert.equal(await status(lost), "email.complained");
+      assert.equal((await admin.query("select count(*)::int n from inquiry_private.delivery_events where job_id=$1", [lost])).rows[0].n, 4);
+
+      // An event during a lease settles the job at once, so a worker crash cannot resend or strand it.
+      await record();
+      const [leased] = await claim();
+      assert.equal(await deliver("msg_e", "email.sent", "email-leased", leased.job_id), "recorded");
+      assert.deepEqual(await job(leased.job_id), { state: "accepted", provider_message_id: "email-leased", last_error: null });
+      assert.equal(await complete(leased, "ambiguous"), true, "the worker's late report finds the job settled");
+      assert.deepEqual(await job(leased.job_id), { state: "accepted", provider_message_id: "email-leased", last_error: null });
+      await record();
+      const [crashed] = await claim();
+      assert.equal(await deliver("msg_e2", "email.delivered", "email-crashed", crashed.job_id), "recorded");
+      await admin.query("update inquiry_private.notification_jobs set leased_until=now()-interval '1 second' where id=$1", [crashed.job_id]);
+      assert.equal((await claim()).length, 0, "a delivered job is never reclaimed after its worker crashes");
+
+      // Untagged foreign mail is not stored; unknown or contradicting tags are stored unmatched, never attached.
+      assert.equal(await deliver("msg_f", "email.sent", "email-foreign"), "unrelated");
+      assert.equal(await deliver("msg_g", "email.sent", "email-unknown-job", randomUUID()), "recorded");
+      assert.equal(await deliver("msg_h", "email.bounced", "email-other", lost), "recorded", "tag disagrees with stored message ID");
+      assert.equal(await deliver("msg_h2", "email.bounced", "email-leased", lost), "recorded", "email ID wins over a wrong tag");
+      const unmatched = (await admin.query("select event_id from inquiry_private.delivery_events where job_id is null order by event_id")).rows;
+      assert.deepEqual(unmatched.map((r) => r.event_id), ["msg_g", "msg_h"]);
+      assert.equal(await status(lost), "email.complained");
+      assert.equal(await status(leased.job_id), "email.bounced");
+
+      // The unmatched backlog is bounded; overflow stores nothing so Resend retries later.
+      await admin.query("insert into inquiry_private.delivery_events(event_id, event_type, email_id, occurred_at) select 'fill_' || g, 'email.sent', 'fill', now() from generate_series(1, 9998) g");
+      assert.equal(await deliver("msg_i", "email.sent", "email-overflow", randomUUID()), "overflow");
+      assert.equal(await deliver("msg_j", "email.delivered", "email-lost", lost), "recorded", "matched events still record");
+      await admin.query("delete from inquiry_private.delivery_events where event_id like 'fill_%'");
+      await rejectsSql(admin, "select public.record_delivery_event('msg_k','email.opened','x',$1,now())", [randomUUID()], "23514");
+      await rejectsSql(admin, "select public.record_delivery_event('bad id','email.sent','x',$1,now())", [randomUUID()], "23514");
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
         for (const role of ["anon", "authenticated"]) {
           await denied.query(`set role ${role}`);
           await denied.query("select set_config('request.jwt.claims', '{\"role\":\"authenticated\",\"user_metadata\":{\"role\":\"owner\"}}', false)");
-          for (const table of ["inquiries", "submission_keys", "notification_jobs"]) {
+          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status"]) {
             await rejectsSql(denied, `select * from inquiry_private.${table}`, [], "42501");
             await rejectsSql(denied, `delete from inquiry_private.${table}`, [], "42501");
           }
           await rejectsSql(denied, "select public.record_contact_inquiry($1::jsonb,$2::uuid,$3::jsonb)", [inquiry, randomUUID(), notification], "42501");
           await rejectsSql(denied, "select * from public.claim_notification_jobs(5, 60)", [], "42501");
           await rejectsSql(denied, "select public.complete_notification_job($1,$2,'accepted','x',null)", [randomUUID(), randomUUID()], "42501");
+          await rejectsSql(denied, "select public.record_delivery_event('msg_x','email.sent','x',null,now())", [], "42501");
           await denied.query("reset role");
         }
         // Temporary test-only grants demonstrate RLS independently from missing privileges.
         await admin.query("begin; grant usage on schema inquiry_private to authenticated; grant select on all tables in schema inquiry_private to authenticated; set local role authenticated");
-        for (const table of ["inquiries", "submission_keys", "notification_jobs"]) {
+        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events"]) {
           assert.equal((await admin.query(`select * from inquiry_private.${table}`)).rowCount, 0);
         }
         await admin.query("rollback");
@@ -251,6 +307,7 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
         await rejectsSql(denied, "delete from inquiry_private.submission_keys", [], "42501");
         await rejectsSql(denied, "update inquiry_private.notification_jobs set recipient='other@example.invalid'", [], "42501");
         await rejectsSql(denied, "update inquiry_private.inquiries set status='resolved'", [], "42501");
+        await rejectsSql(denied, "update inquiry_private.delivery_events set job_id=null", [], "42501");
       } finally { await denied.end(); }
     });
   } finally {

@@ -43,7 +43,8 @@ test("each provider outcome reaches an explicit stored state with a stable idemp
   const h = harness(responses.map((_, i) => job(i)), (i) => responses[i]);
   assert.deepEqual({ ...await h.run() }, { claimed: 7, accepted: 1, deferred: 6, lost: 0 });
   assert.deepEqual(h.sends.map((send) => send.key), responses.map((_, i) => `notification/${job(i).job_id}`));
-  assert.deepEqual(h.sends[0].body, { from: "Website <site@example.com>", to: "staff@example.com", reply_to: "guest@example.com", subject: "Inquiry", text: "Body" });
+  assert.deepEqual(h.sends[0].body, { from: "Website <site@example.com>", to: "staff@example.com", reply_to: "guest@example.com", subject: "Inquiry", text: "Body",
+    tags: [{ name: "notification_job", value: job(0).job_id }] });
   assert.deepEqual(h.completions.map((c) => [c.p_outcome, c.p_provider_message_id, c.p_error]), [
     ["accepted", "msg_1", null], ["retryable", null, "rate_limited"], ["ambiguous", null, "provider_503"],
     ["rejected", null, "provider_422"], ["ambiguous", null, "provider_409"], ["ambiguous", null, "invalid_acknowledgment"],
