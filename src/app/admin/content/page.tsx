@@ -2,12 +2,12 @@ import Link from "next/link";
 import { publish, restore } from "@/app/admin/content/actions";
 import { ctaClassName } from "@/components/ui/cta-link";
 import { PageHeader } from "@/components/ui/page-header";
+import { linkClasses } from "@/components/ui/styles";
 import { requireStaff } from "@/lib/server/auth/session";
 import { draftDocument, getContentState } from "@/lib/server/content/content";
 import { formatTime } from "@/lib/server/inquiries/staff-inbox";
 import { getPersistenceConfiguration } from "@/lib/server/inquiries/persistence";
 
-const linkClasses = "underline decoration-gold/60 underline-offset-4 hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 const headingClasses = "font-serif text-3xl text-ivory";
 const smallButton = "min-h-11 border border-gold/60 px-4 text-sm text-ivory hover:border-gold hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 

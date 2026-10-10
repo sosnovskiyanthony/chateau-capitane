@@ -86,6 +86,8 @@ export const site = {
   )}`,
 } as const;
 
+export type NavLink = { readonly href: string; readonly label: string };
+
 export const navLinks = [
   { href: "/menu", label: "Menu" },
   { href: "/private-events", label: "Private Events" },

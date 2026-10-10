@@ -4,15 +4,14 @@ import { ContentEditorForm } from "@/components/admin/content-editor-form";
 import { PhotoFileInput } from "@/components/admin/photo-file-input";
 import { PlaceholderImage } from "@/components/ui/placeholder-image";
 import { PageHeader } from "@/components/ui/page-header";
+import { labelClasses, linkClasses } from "@/components/ui/styles";
 import { requireStaff } from "@/lib/server/auth/session";
 import { draftDocument, getContentState } from "@/lib/server/content/content";
 import { LUNCH_COURSES, WEEKDAYS, type ContentDocument } from "@/lib/server/content/document";
 import { BLANK_PHOTOS, BLANK_ROWS, findSection, formatDollars } from "@/lib/server/content/editor";
 import { getPersistenceConfiguration } from "@/lib/server/inquiries/persistence";
 
-const linkClasses = "underline decoration-gold/60 underline-offset-4 hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 const fieldClasses = "mt-2 w-full border border-ivory/45 bg-ink-950 px-3 py-2.5 text-ivory focus-visible:border-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold";
-const labelClasses = "block text-xs font-semibold uppercase tracking-caps text-ivory";
 const legendClasses = "font-serif text-2xl text-ivory";
 // Same as the server check: 18, 2.50 or $18.
 const PRICE = String.raw`\$?\s*\d{1,5}(\.\d{1,2})?`;

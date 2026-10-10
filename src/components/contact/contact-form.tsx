@@ -1,20 +1,44 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { ctaClassName } from "@/components/ui/cta-link";
+import { fieldClasses, focusRing, labelClasses } from "@/components/ui/styles";
 import { site } from "@/lib/data/site";
-
-// ivory/45 keeps field borders above 3:1 against both ink-900 and ink-950.
-const fieldClasses =
-  "mt-2.5 w-full border border-ivory/45 bg-ink-950 px-4 py-3 text-ivory focus-visible:border-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold";
-
-const labelClasses =
-  "block text-xs font-semibold uppercase tracking-caps text-ivory";
 
 const optionalClasses = "font-normal normal-case tracking-normal text-ivory-muted";
 
 type Status = "idle" | "sending" | "sent" | "invalid" | "failed";
+
+/** A label above its control; `optional` adds the "(optional)" hint. */
+function Field({
+  id,
+  label,
+  optional = false,
+  wide = false,
+  children,
+}: {
+  id: string;
+  label: string;
+  optional?: boolean;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={wide ? "sm:col-span-2" : undefined}>
+      <label htmlFor={id} className={labelClasses}>
+        {label}
+        {optional ? (
+          <>
+            {" "}
+            <span className={optionalClasses}>(optional)</span>
+          </>
+        ) : null}
+      </label>
+      {children}
+    </div>
+  );
+}
 
 /** Event packages as { id, label } from the server page, so menus stay out of the browser bundle. */
 export function ContactForm({ packages }: { packages: { id: string; label: string }[] }) {
@@ -76,24 +100,11 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
   return (
     <form onSubmit={handleSubmit} className="max-w-xl">
       <div className="grid gap-x-6 gap-y-7 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <label htmlFor="name" className={labelClasses}>
-            Name
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            required
-            autoComplete="name"
-            className={fieldClasses}
-          />
-        </div>
+        <Field id="name" label="Name" wide>
+          <input id="name" name="name" type="text" required autoComplete="name" className={fieldClasses} />
+        </Field>
 
-        <div>
-          <label htmlFor="email" className={labelClasses}>
-            Email
-          </label>
+        <Field id="email" label="Email">
           <input
             id="email"
             name="email"
@@ -103,32 +114,14 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
             spellCheck={false}
             className={fieldClasses}
           />
-        </div>
+        </Field>
 
-        <div>
-          <label htmlFor="phone" className={labelClasses}>
-            Phone <span className={optionalClasses}>(optional)</span>
-          </label>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            autoComplete="tel"
-            className={fieldClasses}
-          />
-        </div>
+        <Field id="phone" label="Phone" optional>
+          <input id="phone" name="phone" type="tel" autoComplete="tel" className={fieldClasses} />
+        </Field>
 
-        <div className="sm:col-span-2">
-          <label htmlFor="event" className={labelClasses}>
-            Private event <span className={optionalClasses}>(optional)</span>
-          </label>
-          <select
-            id="event"
-            name="event"
-            ref={eventField}
-            defaultValue=""
-            className={fieldClasses}
-          >
+        <Field id="event" label="Private event" optional wide>
+          <select id="event" name="event" ref={eventField} defaultValue="" className={fieldClasses}>
             <option value="">No, a general message</option>
             <option value="undecided">Yes, package not chosen yet</option>
             {packages.map((option) => (
@@ -137,25 +130,13 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
               </option>
             ))}
           </select>
-        </div>
+        </Field>
 
-        <div>
-          <label htmlFor="date" className={labelClasses}>
-            Date <span className={optionalClasses}>(optional)</span>
-          </label>
-          <input
-            id="date"
-            name="date"
-            type="date"
-            autoComplete="off"
-            className={fieldClasses}
-          />
-        </div>
+        <Field id="date" label="Date" optional>
+          <input id="date" name="date" type="date" autoComplete="off" className={fieldClasses} />
+        </Field>
 
-        <div>
-          <label htmlFor="guests" className={labelClasses}>
-            Guests <span className={optionalClasses}>(optional)</span>
-          </label>
+        <Field id="guests" label="Guests" optional>
           <input
             id="guests"
             name="guests"
@@ -165,20 +146,11 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
             autoComplete="off"
             className={fieldClasses}
           />
-        </div>
+        </Field>
 
-        <div className="sm:col-span-2">
-          <label htmlFor="message" className={labelClasses}>
-            What can we help with?
-          </label>
-          <textarea
-            id="message"
-            name="message"
-            required
-            rows={5}
-            className={fieldClasses}
-          />
-        </div>
+        <Field id="message" label="What can we help with?" wide>
+          <textarea id="message" name="message" required rows={5} className={fieldClasses} />
+        </Field>
 
         {/* Honeypot: hidden from people and screen readers, so only bots fill it in. */}
         <div aria-hidden="true" className="sr-only">
@@ -213,7 +185,7 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
             Your message didn&rsquo;t go through. Please call us at{" "}
             <a
               href={site.phone.href}
-              className="font-semibold tabular-nums text-gold hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className={`font-semibold tabular-nums text-gold hover:text-gold-bright ${focusRing}`}
             >
               {site.phone.display}
             </a>{" "}

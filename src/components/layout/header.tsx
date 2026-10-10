@@ -5,10 +5,8 @@ import { MobileNavToggle } from "@/components/layout/mobile-nav-toggle";
 import { NavLinks } from "@/components/layout/nav-links";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { BookCta } from "@/components/ui/book-cta";
+import { focusRing } from "@/components/ui/styles";
 import { navLinks, site } from "@/lib/data/site";
-
-const focusRing =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 
 const [firstWord, ...restWords] = site.name.split(" ");
 

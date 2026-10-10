@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type NavLink = { readonly href: string; readonly label: string };
+import { focusRing } from "@/components/ui/styles";
+import type { NavLink } from "@/lib/data/site";
 
 export function NavLinks({ links }: { links: readonly NavLink[] }) {
   const pathname = usePathname();
@@ -18,7 +19,7 @@ export function NavLinks({ links }: { links: readonly NavLink[] }) {
               <Link
                 href={link.href}
                 aria-current={current ? "page" : undefined}
-                className={`relative inline-flex min-h-11 items-center px-3 text-xs font-medium uppercase tracking-caps transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+                className={`relative inline-flex min-h-11 items-center px-3 text-xs font-medium uppercase tracking-caps transition-colors ${focusRing} ${
                   current ? "text-gold" : "text-ivory-muted hover:text-ivory"
                 }`}
               >

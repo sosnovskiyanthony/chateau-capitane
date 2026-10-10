@@ -4,11 +4,7 @@ import { useActionState, type ReactNode } from "react";
 
 import { login, setPasswordFromLink, type FormState } from "@/app/admin/actions";
 import { ctaClassName } from "@/components/ui/cta-link";
-
-// Same field styling as the contact form.
-const fieldClasses =
-  "mt-2.5 w-full border border-ivory/45 bg-ink-950 px-4 py-3 text-ivory focus-visible:border-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold";
-const labelClasses = "block text-xs font-semibold uppercase tracking-caps text-ivory";
+import { fieldClasses, labelClasses } from "@/components/ui/styles";
 
 function Field({ name, label, type, autoComplete }: { name: string; label: string; type: string; autoComplete: string }) {
   return (

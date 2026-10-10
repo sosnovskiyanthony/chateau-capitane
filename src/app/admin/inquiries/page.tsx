@@ -1,16 +1,12 @@
 import Link from "next/link";
 import { ctaClassName } from "@/components/ui/cta-link";
 import { PageHeader } from "@/components/ui/page-header";
+import { fieldClasses, labelClasses, linkClasses } from "@/components/ui/styles";
 import { requireStaff } from "@/lib/server/auth/session";
 import { getPersistenceConfiguration } from "@/lib/server/inquiries/persistence";
 import {
   describeEvent, describeNotification, formatTime, isStatus, listInquiries, parseCursor, SEARCH_MAX, STATUS_LABELS, STATUSES,
 } from "@/lib/server/inquiries/staff-inbox";
-
-const fieldClasses =
-  "mt-2.5 w-full border border-ivory/45 bg-ink-950 px-4 py-3 text-ivory focus-visible:border-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold";
-const labelClasses = "block text-xs font-semibold uppercase tracking-caps text-ivory";
-const linkClasses = "underline decoration-gold/60 underline-offset-4 hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 
 export default async function InboxPage({ searchParams }: PageProps<"/admin/inquiries">) {
   const staff = await requireStaff("/admin/inquiries");

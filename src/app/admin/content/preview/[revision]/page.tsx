@@ -4,13 +4,13 @@ import { GalleryView } from "@/components/gallery/gallery-view";
 import { MenuView } from "@/components/menu/menu-view";
 import { PrivateEventsView } from "@/components/private-events/private-events-view";
 import { PageHeader } from "@/components/ui/page-header";
+import { linkClasses } from "@/components/ui/styles";
 import { requireStaff } from "@/lib/server/auth/session";
 import { getRevision } from "@/lib/server/content/content";
 import { ContentError, toSiteContent, validateDocument } from "@/lib/server/content/document";
 import { formatHours } from "@/lib/data/site";
 import { getPersistenceConfiguration } from "@/lib/server/inquiries/persistence";
 
-const linkClasses = "underline decoration-gold/60 underline-offset-4 hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 
 /** Staff-only preview of any saved version, using the same page bodies as the public site. */
 export default async function PreviewPage({ params, searchParams }: PageProps<"/admin/content/preview/[revision]">) {

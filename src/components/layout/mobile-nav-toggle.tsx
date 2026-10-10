@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { BookCta } from "@/components/ui/book-cta";
+import { useEffect, useRef, useState } from "react";
 
-type NavLink = { readonly href: string; readonly label: string };
+import { BookCta } from "@/components/ui/book-cta";
+import { focusRing } from "@/components/ui/styles";
+import type { NavLink } from "@/lib/data/site";
 
 export function MobileNavToggle({
   links,
@@ -16,11 +17,15 @@ export function MobileNavToggle({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const toggle = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      // The focused link is about to be hidden; keep keyboard users on the menu button.
+      toggle.current?.focus();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -29,12 +34,13 @@ export function MobileNavToggle({
   return (
     <div>
       <button
+        ref={toggle}
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls="mobile-nav"
         aria-label={open ? "Close menu" : "Open menu"}
-        className="-mr-2 inline-flex size-11 items-center justify-center text-ivory focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+        className={`-mr-2 inline-flex size-11 items-center justify-center text-ivory ${focusRing}`}
       >
         <svg
           width="24"
@@ -89,7 +95,7 @@ export function MobileNavToggle({
           </ul>
           <a
             href={phone.href}
-            className="mt-4 inline-flex min-h-11 items-center font-semibold text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            className={`mt-4 inline-flex min-h-11 items-center font-semibold text-gold ${focusRing}`}
           >
             Call {phone.display}
           </a>

@@ -3,13 +3,13 @@ import { notFound } from "next/navigation";
 import { addNote, changeStatus } from "@/app/admin/inquiries/actions";
 import { ctaClassName } from "@/components/ui/cta-link";
 import { PageHeader } from "@/components/ui/page-header";
+import { linkClasses } from "@/components/ui/styles";
 import { requireStaff } from "@/lib/server/auth/session";
 import { getPersistenceConfiguration } from "@/lib/server/inquiries/persistence";
 import {
   describeNotification, formatTime, getInquiry, isInquiryId, NOTE_MAX, STATUS_LABELS, type Status,
 } from "@/lib/server/inquiries/staff-inbox";
 
-const linkClasses = "underline decoration-gold/60 underline-offset-4 hover:text-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 const headingClasses = "font-serif text-3xl text-ivory";
 
 const notices: Record<string, string> = {
