@@ -1,7 +1,7 @@
 import "server-only";
 import type { NormalizedInquiry } from "./contact-input";
 
-type Configuration = Readonly<{ url: string; secretKey: string }>;
+export type Configuration = Readonly<{ url: string; secretKey: string }>;
 export type NotificationSettings = Readonly<{ from: string; to: string }>;
 export type RecordInquiryResult =
   | { kind: "recorded"; inquiryId: string }
@@ -50,23 +50,42 @@ export async function recordContactInquiry(
       `Guests: ${inquiry.guests || "Not provided"}`, "", inquiry.message,
     ].join("\n"),
   };
+  const result = await callRpc(configuration, "record_contact_inquiry",
+    { p_inquiry: inquiry, p_key: submissionKey?.toLowerCase() ?? null, p_notification: notification },
+    2048, dependencies.fetch);
+  if (result && typeof result === "object" && "kind" in result) {
+    if (result.kind === "conflict") return { kind: "conflict" };
+    if (result.kind === "recorded" && "inquiryId" in result &&
+        typeof result.inquiryId === "string" && UUID.test(result.inquiryId)) {
+      return { kind: "recorded", inquiryId: result.inquiryId };
+    }
+  }
+  return { kind: "unavailable" };
+}
+
+/** One no-store PostgREST RPC POST with a bounded body and ten-second timeout.
+ * Returns the parsed JSON, or undefined on any failure. Never retries or logs bodies.
+ */
+export async function callRpc(
+  configuration: Configuration, name: string, args: unknown, maxBytes: number, fetchImpl: typeof fetch = fetch,
+): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await (dependencies.fetch ?? fetch)(`${configuration.url}/rest/v1/rpc/record_contact_inquiry`, {
+    const response = await fetchImpl(`${configuration.url}/rest/v1/rpc/${name}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: configuration.secretKey },
-      body: JSON.stringify({ p_inquiry: inquiry, p_key: submissionKey?.toLowerCase() ?? null, p_notification: notification }),
+      body: JSON.stringify(args),
       cache: "no-store",
       signal: controller.signal,
     });
     if (!response.ok) {
       void response.body?.cancel().catch(() => {});
-      return { kind: "unavailable" };
+      return undefined;
     }
-    // Acknowledgments are tiny; bound reads even if a proxy returns an unexpected body.
+    // Bound reads even if a proxy returns an unexpected body.
     const reader = response.body?.getReader();
-    if (!reader) return { kind: "unavailable" };
+    if (!reader) return undefined;
     const chunks: Uint8Array[] = [];
     let length = 0;
     try {
@@ -74,22 +93,14 @@ export async function recordContactInquiry(
         const { done, value } = await reader.read();
         if (done) break;
         length += value.byteLength;
-        if (length > 2048) { void reader.cancel().catch(() => {}); return { kind: "unavailable" }; }
+        if (length > maxBytes) { void reader.cancel().catch(() => {}); return undefined; }
         chunks.push(value);
       }
     } finally { reader.releaseLock(); }
     const bytes = new Uint8Array(length);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    const result: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    if (result && typeof result === "object" && "kind" in result) {
-      if (result.kind === "conflict") return { kind: "conflict" };
-      if (result.kind === "recorded" && "inquiryId" in result &&
-          typeof result.inquiryId === "string" && UUID.test(result.inquiryId)) {
-        return { kind: "recorded", inquiryId: result.inquiryId };
-      }
-    }
-    return { kind: "unavailable" };
-  } catch { return { kind: "unavailable" }; }
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch { return undefined; }
   finally { clearTimeout(timeout); }
 }

@@ -76,7 +76,7 @@ Server authorization and database policies protect private data. Admin/inquiry r
 
 ## Ordered slices
 
-B01 complete; B02a/b locally verified, B02c integration remains; B03–B12 queued. Contact still sends directly through Resend. Keep intermediate work inactive until its dependencies and checks pass.
+B01 complete; B02a/b locally verified, B02c integration remains; B03a (worker, inactive) locally verified, B03b (intake switch + schedule) next; B04–B12 queued. Contact still sends directly through Resend. Keep intermediate work inactive until its dependencies and checks pass.
 
 | Slice | Depends on | Deliverable |
 | --- | --- | --- |

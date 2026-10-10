@@ -20,4 +20,12 @@ Pass only a valid `NormalizedInquiry`, an optional UUID v4 key and server-contro
 
 Keyless requests create separate units. Keys have no expiry/reuse mechanism yet; B03 must document a retention policy before activation. Dates remain validated `YYYY-MM-DD` strings, including ISO year 0000 accepted by the current parser; no timezone conversion occurs. Timestamps use `timestamptz`. No inquiry/key/job is committed when a write fails. A lost HTTP acknowledgment may follow a commit, so the caller returns `unavailable`; retry using the original key to resolve uncertainty. Keyless callers cannot resolve this safely through deduplication.
 
-The database job states/attempt fields are a foundation, not a worker implementation. Lease fields, reconciliation and update permissions belong in B03. No staff membership/invitations or retention cleanup are implemented. [Provider decision](../docs/plans/backend-provider-decision.md), [B02 progress](../docs/plans/b02-persistence.md).
+No staff membership/invitations or retention cleanup are implemented. [Provider decision](../docs/plans/backend-provider-decision.md), [B02 progress](../docs/plans/b02-persistence.md).
+
+## Notification worker (B03a, inactive)
+
+`migrations/202610090002_notification_worker.sql` adds lease/outcome columns, a column-limited service-role update grant and two service-role RPCs. `claim_notification_jobs(limit, lease_seconds)` atomically leases due pending jobs and expired leases with `FOR UPDATE SKIP LOCKED`, so concurrent or duplicate cron runs never share a job. `complete_notification_job(id, lease_token, outcome, message_id, error)` stores one outcome only while the caller still holds the lease; otherwise it returns false.
+
+Outcomes: `accepted` (Resend message ID), `rejected` (permanent 4xx), `retryable` (429/401/403: not sent), `ambiguous` (timeout, lost response, 409, 5xx, invalid acknowledgment: may have been sent). Retries back off 1, 2, 4 … 60 minutes. Every attempt sends `Idempotency-Key: notification/<job id>`, which Resend honours for 24 hours. After eight attempts or 23 hours since the first attempt the job ends as `failed` (never possibly sent) or `uncertain` (an attempt may have been sent; reconcile manually or via B04 webhooks, never resend blindly). An expired lease counts as possibly sent.
+
+`src/lib/server/inquiries/notification-worker.ts` claims at most five jobs per run and never sends to `.invalid` addresses (synthetic seeds/tests). `GET /api/cron/notifications` requires `Authorization: Bearer $CRON_SECRET` (Vercel Cron's format) and returns counts only. No `vercel.json` schedule exists yet and public intake still sends directly; B03b switches both together.

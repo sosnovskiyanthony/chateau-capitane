@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, mkdirSync, mkdtempSync } from "node:fs";
+import { readFileSync, readdirSync, mkdirSync, mkdtempSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { randomUUID, randomBytes } from "node:crypto";
 import { createServer } from "node:net";
@@ -21,7 +21,8 @@ const port = await new Promise((resolvePort, reject) => {
 const cluster = new EmbeddedPostgres({ databaseDir, port, user: "postgres",
   password: randomBytes(24).toString("hex"), persistent: true, authMethod: "scram-sha-256",
   postgresFlags: ["-h", "127.0.0.1"], onLog: () => {}, onError: () => {} });
-const migration = readFileSync("supabase/migrations/202610090001_inquiry_foundation.sql", "utf8");
+const migration = readdirSync("supabase/migrations").filter((name) => name.endsWith(".sql")).sort()
+  .map((name) => readFileSync(join("supabase/migrations", name), "utf8")).join("\n");
 const inquiry = { name: "Synthetic Guest", email: "guest@example.invalid", phone: "", date: "2026-12-15", guests: "8", message: "Synthetic request" };
 const notification = { sender: "Website <sender@example.invalid>", recipient: "staff@example.invalid",
   reply_to: inquiry.email, subject: "Synthetic inquiry", body: "Synthetic notification" };
@@ -39,6 +40,16 @@ async function record(key = randomUUID(), input = inquiry, payload = notificatio
     return result.rows[0].result;
   } finally { await client.end(); }
 }
+async function asService(sql, values = []) {
+  const client = await connect();
+  try {
+    await client.query("set role service_role");
+    return (await client.query(sql, values)).rows;
+  } finally { await client.end(); }
+}
+const claim = (limit = 20, lease = 60) => asService("select * from public.claim_notification_jobs($1,$2)", [limit, lease]);
+const complete = async (job, outcome, messageId = null, error = outcome === "accepted" ? null : "test_error") =>
+  (await asService("select public.complete_notification_job($1,$2,$3,$4,$5) ok", [job.job_id, job.lease_token, outcome, messageId, error]))[0].ok;
 async function counts(client) {
   const result = await client.query(`select
     (select count(*)::int from inquiry_private.inquiries) inquiries,
@@ -155,6 +166,65 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       await rejectsSql(admin, duplicate, [randomUUID()], "23503");
     });
 
+    await t.test("worker: concurrent claims never share a job and return the immutable payload", async () => {
+      await admin.query("update inquiry_private.notification_jobs set state='failed' where state='pending'");
+      const ids = [];
+      for (let i = 0; i < 12; i++) ids.push((await record()).inquiryId);
+      const batches = await Promise.all(Array.from({ length: 6 }, () => claim(3)));
+      const claimed = batches.flat();
+      assert.equal(claimed.length, 12);
+      assert.equal(new Set(claimed.map((job) => job.job_id)).size, 12);
+      assert.ok(claimed.every((job) => job.attempt === 1 && job.recipient === notification.recipient && job.body === notification.body));
+      assert.equal((await claim()).length, 0, "active leases are not reclaimed");
+      for (const job of claimed) assert.equal(await complete(job, "accepted", `msg-${job.job_id}`), true);
+    });
+
+    await t.test("worker: outcomes need the current lease; retries back off; ambiguity is remembered", async () => {
+      await record();
+      let [job] = await claim();
+      assert.equal(await complete({ ...job, lease_token: randomUUID() }, "accepted", "msg"), false);
+      await rejectsSql(admin, "select public.complete_notification_job($1,$2,'accepted',null,null)", [job.job_id, job.lease_token], "22023");
+      await rejectsSql(admin, "select public.complete_notification_job($1,$2,'sent',null,null)", [job.job_id, job.lease_token], "22023");
+      assert.equal(await complete(job, "ambiguous"), true);
+      assert.equal(await complete(job, "accepted", "late"), false, "a finished lease cannot be completed twice");
+      let row = (await admin.query("select state, maybe_sent, available_at > now() delayed, last_error from inquiry_private.notification_jobs where id=$1", [job.job_id])).rows[0];
+      assert.deepEqual(row, { state: "pending", maybe_sent: true, delayed: true, last_error: "test_error" });
+      assert.equal((await claim()).length, 0, "backoff delays the retry");
+      await admin.query("update inquiry_private.notification_jobs set available_at=now() where id=$1", [job.job_id]);
+      [job] = await claim();
+      assert.equal(job.attempt, 2);
+      assert.equal(await complete(job, "rejected"), true);
+      row = (await admin.query("select state from inquiry_private.notification_jobs where id=$1", [job.job_id])).rows[0];
+      assert.equal(row.state, "uncertain", "a later rejection cannot prove an earlier ambiguous attempt was not sent");
+    });
+
+    await t.test("worker: crashed leases recover with the same job identity; exhausted jobs end explicitly", async () => {
+      await record();
+      const [crashed] = await claim();
+      await admin.query("update inquiry_private.notification_jobs set leased_until=now()-interval '1 second' where id=$1", [crashed.job_id]);
+      const [recovered] = await claim();
+      assert.equal(recovered.job_id, crashed.job_id);
+      assert.equal(recovered.attempt, 2);
+      assert.equal(await complete(crashed, "accepted", "stale"), false, "the crashed worker lost its lease");
+      assert.equal((await admin.query("select maybe_sent from inquiry_private.notification_jobs where id=$1", [crashed.job_id])).rows[0].maybe_sent, true);
+      assert.equal(await complete(recovered, "accepted", "msg-recovered"), true);
+
+      await record();
+      let [job] = await claim();
+      await admin.query("update inquiry_private.notification_jobs set attempts=8 where id=$1", [job.job_id]);
+      assert.equal(await complete(job, "retryable"), true);
+      assert.equal((await admin.query("select state from inquiry_private.notification_jobs where id=$1", [job.job_id])).rows[0].state, "failed");
+
+      await record();
+      [job] = await claim();
+      await admin.query("update inquiry_private.notification_jobs set first_attempt_at=now()-interval '24 hours', leased_until=now()-interval '1 second' where id=$1", [job.job_id]);
+      assert.equal((await claim()).length, 0, "no blind resend outside the idempotency window");
+      const row = (await admin.query("select state, last_error, lease_token from inquiry_private.notification_jobs where id=$1", [job.job_id])).rows[0];
+      assert.deepEqual(row, { state: "uncertain", last_error: "lease_expired", lease_token: null });
+      await rejectsSql(admin, "select * from public.claim_notification_jobs(0, 60)", [], "22023");
+      await rejectsSql(admin, "select * from public.claim_notification_jobs(5, 5)", [], "22023");
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
@@ -166,6 +236,8 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
             await rejectsSql(denied, `delete from inquiry_private.${table}`, [], "42501");
           }
           await rejectsSql(denied, "select public.record_contact_inquiry($1::jsonb,$2::uuid,$3::jsonb)", [inquiry, randomUUID(), notification], "42501");
+          await rejectsSql(denied, "select * from public.claim_notification_jobs(5, 60)", [], "42501");
+          await rejectsSql(denied, "select public.complete_notification_job($1,$2,'accepted','x',null)", [randomUUID(), randomUUID()], "42501");
           await denied.query("reset role");
         }
         // Temporary test-only grants demonstrate RLS independently from missing privileges.
@@ -177,6 +249,8 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
         await denied.query("set role service_role");
         await rejectsSql(denied, "update inquiry_private.notification_jobs set body='changed'", [], "42501");
         await rejectsSql(denied, "delete from inquiry_private.submission_keys", [], "42501");
+        await rejectsSql(denied, "update inquiry_private.notification_jobs set recipient='other@example.invalid'", [], "42501");
+        await rejectsSql(denied, "update inquiry_private.inquiries set status='resolved'", [], "42501");
       } finally { await denied.end(); }
     });
   } finally {

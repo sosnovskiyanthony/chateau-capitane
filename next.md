@@ -6,7 +6,9 @@ Updated: 2026-10-09. Canonical rolling handoff.
 
 Claude Code now builds (rules: [CLAUDE.md](CLAUDE.md), evidence: [docs/claude-workflow.md](docs/claude-workflow.md)); Codex reviews later. Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan → Build → Verify**. B01 complete; B02a/b committed (`a12f3f0`); dependency security slice done (Next 16.4.0).
 
-**Start here: B03** (durable intake + worker), built and tested locally against native PostgreSQL (`npm.cmd run test:db`). Confirm the scheduler from [the provider decision](docs/plans/backend-provider-decision.md) (Vercel Pro stack) before writing worker code.
+**Start here: B03b** — switch public intake to durable storage. Route calls `recordContactInquiry` and answers `202 { ok: true }` ("recorded for staff follow-up") only after commit; update the form text and API tests together; add the `vercel.json` cron (`* * * * *` → `/api/cron/notifications`); document key retention (keys stay reserved until B11 retention policy, never reused) and keyless behaviour; remove the direct Resend send from `src/lib/server/contact.ts` (avoid two Resend clients). Local only: no live mail, deploy or provisioning.
+
+B03a done 2026-10-09 (worker, inactive): scheduler confirmed as Vercel Cron (Bearer `CRON_SECRET`, best-effort, may double-fire, no retries) — the lease design tolerates all three. See "Notification worker" in [supabase/README.md](supabase/README.md).
 
 Owner decision 2026-10-09: **work without virtualization for now.** Do not ask about it or try Docker. B02c (full Supabase gateway/Auth check) stays blocked and must be done before any release. When the owner enables BIOS virtualization: install WSL2 + Docker Desktop (`winget install Docker.DockerDesktop`) and the Supabase CLI, then run B02c and re-run B03+ integration through the gateway.
 
@@ -18,6 +20,8 @@ Owner decision 2026-10-09: **work without virtualization for now.** Do not ask a
 6. Dependencies: Next/eslint-config-next 16.4.0 fixed the critical next/og RCE; `npm audit --omit=dev` reports 0. Five high remain in the dev-only ESLint glob chain with no upstream fix; recheck before release. Docker blocked 2026-10-09: firmware virtualization disabled, WSL not installed.
 
 ## Completed and verified
+
+- B03a: `supabase/migrations/202610090002_notification_worker.sql` (lease columns, column-limited update grant, `claim_notification_jobs`/`complete_notification_job` RPCs), `src/lib/server/inquiries/notification-worker.ts`, `src/app/api/cron/notifications/route.ts`, shared bounded `callRpc` in `persistence.ts`, `tests/notification-worker.test.mjs`, worker cases in `tests/db/persistence.test.mjs`. 2026-10-09: `npm.cmd test` **53/53**, `npm.cmd run test:db` **11 cases + parent** passed (concurrent claims disjoint, lease-token enforcement, backoff, crash recovery, 8-attempt and 23-hour limits → failed/uncertain, role denial); lint and build passed; `/code-review` fixes applied (claim byte bound, 401/403 retryable, limits repeated in claim). Cron route not exercised over HTTP (simple bearer check; unit-tested worker only). Known ceiling: expired lease counts as "maybe sent" even if the crash preceded sending (`ponytail:` note in migration).
 
 - B01 parsing contract is in baseline `dbd290f`; only valid results expose six normalized readonly strings.
 - B02a/b: `supabase/migrations/202610090001_inquiry_foundation.sql`, synthetic `supabase/seed.sql`, `src/lib/server/inquiries/persistence.ts`, `tests/persistence.test.mjs`, `tests/db/persistence.test.mjs`, server-only env settings and docs. One invoker RPC atomically claims key, inserts inquiry and snapshots notification. Database SHA-256 fingerprints fixed inquiry fields and notification configuration/version. UUID key case deduplicates; changed payload conflicts. No expiry/cleanup/reuse policy yet.
