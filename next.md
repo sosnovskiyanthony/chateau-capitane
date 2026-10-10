@@ -4,14 +4,18 @@ Updated: 2026-10-09. Canonical rolling handoff.
 
 ## Objective and starting task
 
-Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan → Build → Verify**. B01 complete; **B02a/b locally verified. Continue B02c: full Supabase integration verification.**
+Claude Code now builds (rules: [CLAUDE.md](CLAUDE.md), evidence: [docs/claude-workflow.md](docs/claude-workflow.md)); Codex reviews later. Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan → Build → Verify**. B01 complete; B02a/b committed (`a12f3f0`); dependency security slice done (Next 16.4.0).
 
-1. Check Git state; preserve B02 changes and unrelated benchmark traces. Read [B02 results](docs/plans/b02-persistence.md) and [persistence instructions](supabase/README.md). Do not repeat B01/provider research.
+**Start here:** ask the owner whether BIOS virtualization is enabled now.
+- **Yes** → verify (`systeminfo`: "Virtualization Enabled In Firmware: Yes"), install WSL2 + Docker Desktop (`winget install Docker.DockerDesktop`; owner clicks UAC/restart), install Supabase CLI as a dev dependency, then do **B02c** below.
+- **No** → start **B03** (durable intake + worker) locally against native PostgreSQL tests; keep B02c marked blocked. Confirm the scheduler from [the provider decision](docs/plans/backend-provider-decision.md) (Vercel Pro stack) before writing worker code.
+
+1. Check Git state; preserve unrelated benchmark traces (never commit them). Read [B02 results](docs/plans/b02-persistence.md) and [persistence instructions](supabase/README.md). Do not repeat B01/provider research.
 2. Provider selection resolved: owner delegated online research, selection and local building. Vercel Pro + Supabase Pro PostgreSQL/Auth, Vercel `iad1` / Supabase specific `us-east-1`, company-owned accounts, ~$45/month base before extras. [Evidence and alternatives](docs/plans/backend-provider-decision.md). No paid provisioning, push, deployment, live migration or real mail is authorized.
 3. Native PostgreSQL tooling is installed and verified. Docker/Supabase CLI remain unavailable. Establish a full disposable local Supabase stack if compatible container tooling can be installed. Never reset remote targets or count standalone PostgreSQL as gateway/Auth evidence.
 4. B02c must apply migrations through the supported Supabase workflow and exercise the RPC through the gateway with server/anonymous/authenticated keys. Keep private schema unexposed. Staff access stays closed until B06 membership; metadata cannot grant access. B02 remains incomplete until integration is checked.
 5. Keep contact route on direct email until B03 worker, acknowledgment, key policy and tests are ready. Never deliver synthetic jobs.
-6. Resolve existing dependency advisories before release in a separate upgrade slice: audit reported eight high and one critical, including Next.js. No previously locked versions changed in B02.
+6. Dependencies: Next/eslint-config-next 16.4.0 fixed the critical next/og RCE; `npm audit --omit=dev` reports 0. Five high remain in the dev-only ESLint glob chain with no upstream fix; recheck before release. Docker blocked 2026-10-09: firmware virtualization disabled, WSL not installed.
 
 ## Completed and verified
 
@@ -33,4 +37,4 @@ Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan
 
 Update this file and roadmap after verified slices; keep missing checks explicit. `HANDOFF.md` remains a pointer. This local checkpoint is ready for clearing context.
 
-Fresh-session prompt: **Read next.md and continue B02c.**
+Fresh-session prompt: **Read next.md and continue.**
