@@ -1,3 +1,4 @@
+import { CtaLink } from "@/components/ui/cta-link";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import type { BanquetTier } from "@/lib/data/private-events";
 
@@ -36,6 +37,13 @@ export function TierSection({ tier }: { tier: BanquetTier }) {
           </div>
         ))}
       </div>
+
+      <CtaLink href={`/contact?event=${tier.id}`} variant="secondary" className="mt-10">
+        Ask about this package
+        <span className="sr-only">
+          : {tier.name} ${tier.pricePerPerson}
+        </span>
+      </CtaLink>
     </section>
   );
 }

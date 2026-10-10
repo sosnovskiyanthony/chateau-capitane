@@ -45,8 +45,9 @@ export async function recordContactInquiry(
     sender: settings.from,
     recipient: settings.to,
     reply_to: inquiry.email,
-    subject: `Website enquiry from ${inquiry.name}`,
+    subject: `Website ${inquiry.kind === "event" ? "private event " : ""}enquiry from ${inquiry.name}`,
     body: [
+      ...(inquiry.kind === "event" ? [`Private event package: ${inquiry.eventPackage || "Not chosen yet"}`] : []),
       `Name: ${inquiry.name}`, `Email: ${inquiry.email}`,
       `Phone: ${inquiry.phone || "Not provided"}`, `Date: ${inquiry.date || "Not provided"}`,
       `Guests: ${inquiry.guests || "Not provided"}`, "", inquiry.message,

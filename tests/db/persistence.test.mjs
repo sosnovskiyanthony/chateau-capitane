@@ -23,7 +23,7 @@ const cluster = new EmbeddedPostgres({ databaseDir, port, user: "postgres",
   postgresFlags: ["-h", "127.0.0.1"], onLog: () => {}, onError: () => {} });
 const migration = readdirSync("supabase/migrations").filter((name) => name.endsWith(".sql")).sort()
   .map((name) => readFileSync(join("supabase/migrations", name), "utf8")).join("\n");
-const inquiry = { name: "Synthetic Guest", email: "guest@example.invalid", phone: "", date: "2026-12-15", guests: "8", message: "Synthetic request" };
+const inquiry = { name: "Synthetic Guest", email: "guest@example.invalid", phone: "", date: "2026-12-15", guests: "8", message: "Synthetic request", kind: "contact", eventPackage: "" };
 const notification = { sender: "Website <sender@example.invalid>", recipient: "staff@example.invalid",
   reply_to: inquiry.email, subject: "Synthetic inquiry", body: "Synthetic notification" };
 
@@ -434,6 +434,52 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
         await rejectsSql(server, "update inquiry_private.inquiry_notes set body='x'", [], "42501");
         await rejectsSql(server, "delete from inquiry_private.audit_events", [], "42501");
         await rejectsSql(server, "insert into inquiry_private.staff_members values ($1,'owner')", [randomUUID()], "42501");
+      } finally { await server.end(); }
+    });
+
+    await t.test("events: package snapshot and date kept, same inbox, invalid kinds and shapes refused", async () => {
+      const staff = randomUUID();
+      await admin.query("insert into inquiry_private.staff_members(user_id, role) values ($1,'staff')", [staff]);
+      const call = async (fn, args) => (await asService(`select public.${fn}(${args.map((_, i) => `$${i + 1}`).join(",")}) r`, args))[0].r;
+      const event = { ...inquiry, kind: "event", eventPackage: "Banquet, $140 per person", date: "2026-12-31", guests: "40" };
+      const key = randomUUID();
+      const stored = await record(key, event);
+      assert.deepEqual(await record(key, event), stored);
+      assert.equal((await record(key, { ...event, eventPackage: "Banquet, $170 per person" })).kind, "conflict");
+      assert.equal((await record(key, { ...event, kind: "contact", eventPackage: "" })).kind, "conflict");
+      const undecided = await record(randomUUID(), { ...event, eventPackage: "" });
+      const plain = await record(randomUUID(), { ...inquiry, name: "Plain Contact" });
+
+      const detail = await call("staff_get_inquiry", [staff, stored.inquiryId]);
+      assert.deepEqual([detail.kind, detail.eventPackage, detail.requestedDate, detail.guests],
+        ["event", "Banquet, $140 per person", "2026-12-31", 40]);
+      assert.deepEqual([(await call("staff_get_inquiry", [staff, undecided.inquiryId])).eventPackage,
+        (await call("staff_get_inquiry", [staff, plain.inquiryId])).kind], [null, "contact"]);
+      const rows = await call("staff_list_inquiries", [staff, "new", null, null, null, 100]);
+      const kinds = Object.fromEntries(rows.map((row) => [row.id, [row.kind, row.eventPackage]]));
+      assert.deepEqual([kinds[stored.inquiryId], kinds[undecided.inquiryId], kinds[plain.inquiryId]],
+        [["event", "Banquet, $140 per person"], ["event", null], ["contact", null]]);
+      assert.equal((await call("staff_set_inquiry_status", [staff, "s@example.invalid", stored.inquiryId, 1, "in_progress"])).kind, "updated");
+
+      const sixFields = Object.fromEntries(Object.entries(inquiry).filter(([field]) => !["kind", "eventPackage"].includes(field)));
+      const legacy = await record(randomUUID(), sixFields);
+      assert.equal((await call("staff_get_inquiry", [staff, legacy.inquiryId])).kind, "contact");
+      // A six-field retry still matches a plain contact recorded with explicit kind (same fingerprint).
+      const sameKey = randomUUID();
+      assert.deepEqual(await record(sameKey, sixFields), await record(sameKey, inquiry));
+      for (const input of [{ ...inquiry, kind: "booking" }, { ...inquiry, eventPackage: "Banquet, $140 per person" },
+        { ...event, eventPackage: 140 }, { ...event, confirmed: "yes" }]) {
+        await assert.rejects(record(randomUUID(), input), (error) => error.code === "22023");
+      }
+      for (const eventPackage of [" padded ", "line\nbreak", "x".repeat(201)]) {
+        await assert.rejects(record(randomUUID(), { ...event, eventPackage }), (error) => error.code === "23514");
+      }
+      await rejectsSql(admin, "update inquiry_private.inquiries set event_package='x' where id=$1", [plain.inquiryId], "23514");
+      const server = await connect();
+      try {
+        await server.query("set role service_role");
+        await rejectsSql(server, "update inquiry_private.inquiries set event_package='Banquet, $230 per person'", [], "42501");
+        await rejectsSql(server, "update inquiry_private.inquiries set kind='contact'", [], "42501");
       } finally { await server.end(); }
     });
 

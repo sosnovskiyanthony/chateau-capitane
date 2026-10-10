@@ -7,12 +7,16 @@ export const STATUSES = ["new", "in_progress", "resolved"] as const;
 export type Status = (typeof STATUSES)[number];
 export const STATUS_LABELS: Record<Status, string> = { new: "New", in_progress: "In progress", resolved: "Resolved" };
 export const PAGE_SIZE = 25;
+/** "Private event: <package as requested>" for event inquiries; null for plain messages. */
+export const describeEvent = (row: { kind: string; eventPackage: string | null }) =>
+  row.kind === "event" ? `Private event: ${row.eventPackage ?? "package not chosen yet"}` : null;
 export const NOTE_MAX = 2000;
 export const SEARCH_MAX = 100;
 
 export type Notification = { state: string; attempts: number; lastError: string | null; delivery: string | null } | null;
 export type InquirySummary = {
-  id: string; name: string; email: string; status: Status; requestedDate: string | null;
+  id: string; name: string; email: string; status: Status; kind: "contact" | "event"; eventPackage: string | null;
+  requestedDate: string | null;
   guests: number | null; createdAt: string; notification: Notification;
 };
 export type InquiryDetail = InquirySummary & {

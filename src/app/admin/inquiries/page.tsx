@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireStaff } from "@/lib/server/auth/session";
 import { getPersistenceConfiguration } from "@/lib/server/inquiries/persistence";
 import {
-  describeNotification, formatTime, isStatus, listInquiries, parseCursor, SEARCH_MAX, STATUS_LABELS, STATUSES,
+  describeEvent, describeNotification, formatTime, isStatus, listInquiries, parseCursor, SEARCH_MAX, STATUS_LABELS, STATUSES,
 } from "@/lib/server/inquiries/staff-inbox";
 
 const fieldClasses =
@@ -25,7 +25,7 @@ export default async function InboxPage({ searchParams }: PageProps<"/admin/inqu
 
   return (
     <>
-      <PageHeader eyebrow="Staff" title="Inquiries" intro="Website messages, newest first. Reply by email or phone as usual." />
+      <PageHeader eyebrow="Staff" title="Inquiries" intro="Website messages and private-event requests, newest first. Reply by email or phone as usual." />
       <p className="mt-6 text-sm"><Link href="/admin" className={linkClasses}>Back to dashboard</Link></p>
 
       <form method="get" className="mt-10 grid gap-6 sm:grid-cols-[12rem_1fr_auto] sm:items-end" role="search">
@@ -51,6 +51,7 @@ export default async function InboxPage({ searchParams }: PageProps<"/admin/inqu
         <ul className="mt-10 divide-y divide-ivory/15 border-y border-ivory/15">
           {page.rows.map((row) => {
             const notification = describeNotification(row.notification);
+            const event = describeEvent(row);
             return (
               <li key={row.id} className="py-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
@@ -59,6 +60,7 @@ export default async function InboxPage({ searchParams }: PageProps<"/admin/inqu
                   </Link>
                   <span className="text-xs font-semibold uppercase tracking-caps text-gold">{STATUS_LABELS[row.status]}</span>
                 </div>
+                {event ? <p className="mt-2 break-words text-sm text-ivory">{event}</p> : null}
                 <p className="mt-2 break-words text-sm text-ivory-muted">
                   {row.email} · Received {formatTime(row.createdAt)}
                   {row.requestedDate ? ` · For ${row.requestedDate}` : ""}

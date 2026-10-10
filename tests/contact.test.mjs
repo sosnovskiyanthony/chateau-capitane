@@ -22,7 +22,8 @@ function loadSource(path, imports = {}, globals = {}) {
   return context.exports;
 }
 
-const contactInput = loadSource("src/lib/server/inquiries/contact-input.ts");
+const privateEvents = loadSource("src/lib/data/private-events.ts");
+const contactInput = loadSource("src/lib/server/inquiries/contact-input.ts", { "@/lib/data/private-events": privateEvents });
 const handler = loadSource("src/lib/server/contact.ts", { "./inquiries/contact-input": contactInput });
 const valid = { name: " Guest ", email: " guest@example.test ", message: " Dinner inquiry " };
 
@@ -59,10 +60,27 @@ test("normalized inquiry excludes guest-supplied routing and workflow fields", a
     kind: "valid",
     inquiry: {
       name: "Guest Name", email: "guest@example.test", message: "Dinner inquiry",
-      phone: "", date: "", guests: "",
+      phone: "", date: "", guests: "", kind: "contact", eventPackage: "",
     },
     submissionKey: "12345678-1234-4123-8123-123456789abc",
   });
+});
+
+test("event inquiries snapshot the published package label; unknown packages are rejected", async () => {
+  const parse = async (event) => (await contactInput.parseContactInput(request({ ...valid, event, date: "2026-12-31", guests: "40" }))).inquiry;
+  const tier = privateEvents.getPrivateEventTiers().find((t) => t.id === "banquet-140");
+  assert.deepEqual([(await parse("banquet-140")).kind, (await parse("banquet-140")).eventPackage],
+    ["event", `${tier.name}, $${tier.pricePerPerson} per person`]);
+  assert.equal((await parse(" banquet-140 ")).eventPackage, "Banquet, $140 per person");
+  assert.deepEqual([(await parse("undecided")).kind, (await parse("undecided")).eventPackage], ["event", ""]);
+  assert.equal((await parse("undecided")).date, "2026-12-31");
+  assert.deepEqual([(await parse("")).kind, (await parse("")).eventPackage], ["contact", ""]);
+  for (const event of ["banquet-999", "Banquet, $140 per person", "constructor", "__proto__"]) {
+    const result = await contactInput.parseContactInput(request({ ...valid, event }));
+    assert.equal(result.kind, "invalid");
+    assert.equal(result.status, 400);
+  }
+  assert.equal((await contactInput.parseContactInput(request({ ...valid, event: ["kids"] }))).kind, "invalid");
 });
 
 test("discarded and invalid submissions never expose an inquiry to persistence", async () => {
@@ -116,7 +134,7 @@ test("records one normalized inquiry with server-controlled notification setting
   const [inquiry, key, settings, options] = calls[0];
   assert.deepEqual({ ...inquiry }, {
     name: "Guest Name", email: "guest@example.test", message: "Dinner inquiry",
-    phone: "+1 555 0100", date: "2028-02-29", guests: "12",
+    phone: "+1 555 0100", date: "2028-02-29", guests: "12", kind: "contact", eventPackage: "",
   });
   assert.equal(key, null);
   assert.deepEqual({ ...settings }, { from: "sender@example.test", to: "owner@example.test" });

@@ -54,6 +54,8 @@ export default async function InquiryPage({ params, searchParams }: PageProps<"/
     ["Received", formatTime(inquiry.createdAt)],
     ["Email", <a key="e" href={`mailto:${inquiry.email}`} className={linkClasses}>{inquiry.email}</a>],
     ["Phone", inquiry.phone ? <a key="p" href={`tel:${inquiry.phone.replace(/[^\d+]/g, "")}`} className={linkClasses}>{inquiry.phone}</a> : "Not provided"],
+    ["Kind", inquiry.kind === "event" ? "Private event" : "General message"],
+    ...(inquiry.kind === "event" ? [["Package requested", inquiry.eventPackage ?? "Not chosen yet"] as [string, string]] : []),
     ["Requested date", inquiry.requestedDate ?? "Not provided"],
     ["Guests", inquiry.guests ?? "Not provided"],
     ["Staff email", <span key="n" className={notification.problem ? "font-semibold text-gold-bright" : ""}>{notification.label}</span>],

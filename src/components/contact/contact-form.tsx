@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { ctaClassName } from "@/components/ui/cta-link";
 import { site } from "@/lib/data/site";
@@ -16,10 +16,21 @@ const optionalClasses = "font-normal normal-case tracking-normal text-ivory-mute
 
 type Status = "idle" | "sending" | "sent" | "invalid" | "failed";
 
-export function ContactForm() {
+/** Event packages as { id, label } from the server page, so menus stay out of the browser bundle. */
+export function ContactForm({ packages }: { packages: { id: string; label: string }[] }) {
   const [status, setStatus] = useState<Status>("idle");
   const sending = useRef(false);
   const submission = useRef<{ body: string; key: string } | null>(null);
+  const eventField = useRef<HTMLSelectElement>(null);
+
+  // Private-events links pass ?event=<package id> (or "undecided"); unknown values are ignored.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("event");
+    const select = eventField.current;
+    if (select && requested && Array.from(select.options).some((option) => option.value === requested)) {
+      select.value = requested;
+    }
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -105,6 +116,27 @@ export function ContactForm() {
             autoComplete="tel"
             className={fieldClasses}
           />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label htmlFor="event" className={labelClasses}>
+            Private event <span className={optionalClasses}>(optional)</span>
+          </label>
+          <select
+            id="event"
+            name="event"
+            ref={eventField}
+            defaultValue=""
+            className={fieldClasses}
+          >
+            <option value="">No, a general message</option>
+            <option value="undecided">Yes, package not chosen yet</option>
+            {packages.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>

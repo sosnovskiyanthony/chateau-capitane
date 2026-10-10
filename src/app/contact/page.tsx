@@ -6,6 +6,7 @@ import { MapEmbed } from "@/components/contact/map-embed";
 import { Container } from "@/components/layout/container";
 import { PageHeader } from "@/components/ui/page-header";
 import { BookCta } from "@/components/ui/book-cta";
+import { getPrivateEventTiers, packageLabel } from "@/lib/data/private-events";
 import { site } from "@/lib/data/site";
 import { pageMetadata } from "@/lib/metadata";
 
@@ -37,7 +38,9 @@ export default function ContactPage() {
             Send a message
           </h2>
           <div className="mt-8">
-            <ContactForm />
+            <ContactForm
+              packages={getPrivateEventTiers().map((tier) => ({ id: tier.id, label: packageLabel(tier) }))}
+            />
           </div>
         </div>
 

@@ -1,3 +1,5 @@
+import { getPrivateEventTiers, packageLabel } from "@/lib/data/private-events";
+
 const MAX_BODY_BYTES = 32 * 1024;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -12,7 +14,19 @@ export type NormalizedInquiry = Readonly<{
   date: string;
   guests: string;
   message: string;
+  kind: "contact" | "event";
+  /** Package label as shown to the guest when they asked (name and price); "" when none chosen. */
+  eventPackage: string;
 }>;
+
+/** Form value for an event inquiry that has not picked a package yet. */
+export const UNDECIDED_EVENT = "undecided";
+
+/** Snapshot label for a published package, or null when the ID is not offered. */
+function snapshotPackage(id: string): string | null {
+  const tier = getPrivateEventTiers().find((candidate) => candidate.id === id);
+  return tier ? packageLabel(tier) : null;
+}
 
 export type ContactInputResult =
   | { kind: "valid"; inquiry: NormalizedInquiry; submissionKey: string | null }
@@ -78,14 +92,18 @@ export async function parseContactInput(request: Request): Promise<ContactInputR
   if (input.company !== undefined && typeof input.company !== "string") return invalid(400, { error: "Invalid request." });
   // Discard bots without producing data for delivery or future persistence.
   if (typeof input.company === "string" && input.company.trim()) return { kind: "discard" };
-  const fields = ["name", "email", "phone", "date", "guests", "message"] as const;
+  const fields = ["name", "email", "phone", "date", "guests", "message", "event"] as const;
   for (const field of fields) {
     if (input[field] !== undefined && typeof input[field] !== "string") return invalid(400, { error: "Please check the form and try again." });
   }
   const text = (key: (typeof fields)[number]) => typeof input[key] === "string" ? input[key].trim() : "";
+  const event = text("event");
+  const eventPackage = event && event !== UNDECIDED_EVENT ? snapshotPackage(event) : "";
+  if (eventPackage === null) return invalid(400, { error: "Please check the form and try again." });
   const enquiry: NormalizedInquiry = {
     name: text("name").replace(/\s+/g, " "), email: text("email"), phone: text("phone"),
     date: text("date"), guests: text("guests"), message: text("message"),
+    kind: event ? "event" : "contact", eventPackage,
   };
   if (
     !enquiry.name || enquiry.name.length > 200 || enquiry.email.length > 254 || !EMAIL_PATTERN.test(enquiry.email) ||

@@ -38,7 +38,7 @@ export default function PrivateEventsPage() {
           className="md:col-span-6"
         >
           <CallCta />
-          <CtaLink href="/contact" variant="secondary">
+          <CtaLink href="/contact?event=undecided" variant="secondary">
             Send us the details
           </CtaLink>
         </PageHeader>

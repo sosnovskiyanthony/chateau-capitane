@@ -82,3 +82,12 @@ Not included yet: a "forgot password" form (the owner sends resets from the dash
 - **Privacy.** Pages are dynamic and sent `Cache-Control: private, no-store`; RPC calls use `cache: "no-store"`; nothing logs inquiry text. Replies go out through staff's own email/phone (mailto/tel links); automatic replies are out of scope.
 - **Recovery (read-only inbox).** As the database owner: `revoke execute on function public.staff_set_inquiry_status(uuid, text, uuid, integer, text), public.staff_add_inquiry_note(uuid, text, uuid, text) from service_role;` Reading continues; actions show "could not be saved". Grant execute back to restore.
 - **Volume.** Search is a sequential scan, fine for thousands of inquiries; add `pg_trgm` indexes if it grows far beyond that.
+
+## Event inquiries (B08)
+
+`migrations/202610100003_event_inquiries.sql` lets `inquiries.kind` be `contact` or `event` and adds `event_package`: the package label exactly as the guest chose it (for example "Banquet, $140 per person"), copied at submission so later menu or price changes never rewrite the request. The contact form's optional "Private event" field offers "No, a general message", "Yes, package not chosen yet", or a published package; each package on `/private-events` links to `/contact?event=<package id>` to preselect it. The website rejects package IDs it does not publish (400); the database checks only shape (contact rows cannot carry a package).
+
+- **Compatibility.** `record_contact_inquiry` still accepts the six-field B02 shape (stored as `contact`), and plain contact messages keep their B02 fingerprint. Apply this migration before deploying the app that sends `kind`/`eventPackage`; rolling the app back afterwards is safe.
+- **Inbox.** Both kinds share `/admin/inquiries`, statuses, notes and audit. Event rows show "Private event: <package>"; the detail page shows Kind and Package requested. The staff email for an event starts with the package line. Nothing confirms a booking automatically; OpenTable "Book now" and Call links are unchanged.
+- **Recovery.** Remove the form field (and the package links); stored kinds and packages stay readable in the inbox.
+- **Known limit.** The fingerprint includes the package label, so if a package's name or price changes in the seconds between a lost response and the guest's retry, the retry is refused as changed (409) and the guest sends again, which can leave a duplicate.

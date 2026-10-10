@@ -76,7 +76,7 @@ Server authorization and database policies protect private data. Admin/inquiry r
 
 ## Ordered slices
 
-B01 complete; B02a/b locally verified, B02c integration remains; B03a/b locally verified (contact records to storage, 202; worker scheduled in `vercel.json`); B04 locally verified (signed Resend webhooks, delivery event log, lost-response reconciliation); B05 locally verified (shared Postgres rate limits, Vercel client header, fail-closed 429/503); B06 locally verified (invited staff sign-in, membership table, revocation on next request); B07 locally verified (staff inbox: filters, pages, versioned statuses, notes, audit); B08 next; B08–B12 queued. Real intake through Supabase gateway unchecked (B02c). Keep intermediate work inactive until its dependencies and checks pass.
+B01 complete; B02a/b locally verified, B02c integration remains; B03a/b locally verified (contact records to storage, 202; worker scheduled in `vercel.json`); B04 locally verified (signed Resend webhooks, delivery event log, lost-response reconciliation); B05 locally verified (shared Postgres rate limits, Vercel client header, fail-closed 429/503); B06 locally verified (invited staff sign-in, membership table, revocation on next request); B07 locally verified (staff inbox: filters, pages, versioned statuses, notes, audit); B08 locally verified (event inquiries: package snapshot, one inbox); B09 next (needs editor scope decision); B09–B12 queued. Real intake through Supabase gateway unchecked (B02c). Keep intermediate work inactive until its dependencies and checks pass.
 
 | Slice | Depends on | Deliverable |
 | --- | --- | --- |

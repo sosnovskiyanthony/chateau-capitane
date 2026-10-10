@@ -13,7 +13,7 @@ const context = { exports: {}, URL, TextDecoder, AbortController,
 new Script(outputText).runInNewContext(context);
 const { getPersistenceConfiguration, recordContactInquiry } = context.exports;
 const configuration = { url: "https://example.supabase.co", secretKey: "sb_secret_test" };
-const inquiry = { name: "Synthetic Guest", email: "guest@example.invalid", phone: "", date: "", guests: "", message: "Synthetic request" };
+const inquiry = { name: "Synthetic Guest", email: "guest@example.invalid", phone: "", date: "", guests: "", message: "Synthetic request", kind: "contact", eventPackage: "" };
 const key = "12345678-1234-4123-8123-123456789abc";
 const settings = { from: "Website <sender@example.invalid>", to: "staff@example.invalid" };
 
@@ -44,6 +44,22 @@ test("caller sends one no-store RPC, canonical key and immutable server notifica
   assert.equal(result.kind, "recorded");
   assert.equal(result.inquiryId, key);
   assert.equal(calls, 1);
+});
+
+test("event inquiries name the requested package in the staff email", async () => {
+  for (const [eventPackage, line] of [["Banquet, $140 per person", "Private event package: Banquet, $140 per person"],
+    ["", "Private event package: Not chosen yet"]]) {
+    await recordContactInquiry({ ...inquiry, kind: "event", eventPackage }, key, settings, { configuration, fetch: async (_url, options) => {
+      const { p_notification } = JSON.parse(options.body);
+      assert.match(p_notification.subject, /private event enquiry/);
+      assert.equal(p_notification.body.split("\n")[0], line);
+      return Response.json({ kind: "recorded", inquiryId: key });
+    } });
+  }
+  await recordContactInquiry(inquiry, key, settings, { configuration, fetch: async (_url, options) => {
+    assert.doesNotMatch(JSON.parse(options.body).p_notification.body, /Private event/);
+    return Response.json({ kind: "recorded", inquiryId: key });
+  } });
 });
 
 test("lost acknowledgment, provider errors and malformed/oversized acknowledgments fail safely without retries", async () => {
