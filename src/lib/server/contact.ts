@@ -1,16 +1,18 @@
 import { parseContactInput } from "./inquiries/contact-input";
+import type { checkContactLimit } from "./inquiries/abuse-limit";
 import type { Configuration, recordContactInquiry } from "./inquiries/persistence";
 
 type ContactConfiguration = { persistence: Configuration | null; from?: string; to: string };
 
 export type ContactDependencies = {
   getConfiguration: () => ContactConfiguration;
+  limit: typeof checkContactLimit;
   record: typeof recordContactInquiry;
   logError: (code: string) => void;
 };
 
-function reply(status: number, body: Record<string, unknown>) {
-  return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+function reply(status: number, body: Record<string, unknown>, headers: Record<string, string> = {}) {
+  return Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
 /** Records an inquiry and its notification job; 202 means stored for staff follow-up, never a booking.
@@ -27,6 +29,18 @@ export async function handleContact(request: Request, dependencies: ContactDepen
   if (!configuration.persistence || !from || !to) {
     dependencies.logError("contact_not_configured");
     return reply(503, { error: "The form is unavailable right now." });
+  }
+  // After the cheap local checks above; before any storage write.
+  const limit = await dependencies.limit(request, input.submissionKey, configuration.persistence);
+  if (limit.kind === "limited") {
+    dependencies.logError("contact_rate_limited");
+    return reply(429, { error: "Too many messages right now. Please try again later or call us." },
+      { "Retry-After": String(limit.retryAfter) });
+  }
+  if (limit.kind === "unavailable") {
+    // Fail closed: never accept unlimited intake while the shared limiter is unreachable.
+    dependencies.logError("contact_limiter_unavailable");
+    return reply(503, { error: "The message could not be confirmed. Please try again or call us." });
   }
   const result = await dependencies.record(input.inquiry, input.submissionKey, { from, to },
     { configuration: configuration.persistence });

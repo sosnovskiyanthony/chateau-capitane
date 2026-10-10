@@ -15,7 +15,8 @@ The Next.js route reads environment settings per request and invokes the testabl
 | 413 | Request body exceeds the limit. |
 | 415 | Request isn't JSON. |
 | 409 | The key is already reserved by a different payload. |
-| 503 | Configuration absent, or storage failed/unconfirmed. Never acknowledged; an unchanged retry with the same key is deduplicated. |
+| 429 | Shared rate limit reached; `Retry-After` gives seconds to wait. Nothing stored. See [rate limits](../supabase/README.md#contact-rate-limits-b05). |
+| 503 | Configuration absent, rate limiter unreachable (fails closed), or storage failed/unconfirmed. Never acknowledged; an unchanged retry with the same key is deduplicated. |
 
 Successful replies contain `{ "ok": true }`; errors contain `{ "error": "..." }`. Responses are not cached. The existing form retains its generic validation/failure UI and phone fallback. Storage diagnostics never appear in public responses, and logs contain only static codes.
 

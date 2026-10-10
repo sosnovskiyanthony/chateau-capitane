@@ -39,13 +39,15 @@ const persistence = { url: "https://example.supabase.co", secretKey: "sb_secret_
 function fixture(overrides = {}) {
   const calls = [];
   const logs = [];
+  const limits = [];
   const dependencies = {
     getConfiguration: () => ({ persistence, from: "sender@example.test", to: "owner@example.test" }),
+    limit: async (...args) => { limits.push(args); return { kind: "allowed" }; },
     record: async (...args) => { calls.push(args); return { kind: "recorded", inquiryId: "internal-id" }; },
     logError: (...args) => logs.push(args),
     ...overrides,
   };
-  return { calls, logs, submit: (req = request()) => handler.handleContact(req, dependencies) };
+  return { calls, logs, limits, submit: (req = request()) => handler.handleContact(req, dependencies) };
 }
 
 test("normalized inquiry excludes guest-supplied routing and workflow fields", async () => {
@@ -140,9 +142,38 @@ for (const [label, body] of [
 }
 
 test("discards honeypot submissions with the success reply, without configuration", async () => {
-  const { submit, calls } = fixture({ getConfiguration: () => { throw new Error("Must not read configuration"); } });
+  const { submit, calls, limits } = fixture({ getConfiguration: () => { throw new Error("Must not read configuration"); } });
   assert.equal((await submit(request({ company: "bot" }))).status, 202);
   assert.equal(calls.length, 0);
+  assert.equal(limits.length, 0);
+});
+
+test("checks the shared limit with the request and key before storage", async () => {
+  const { submit, limits, calls } = fixture();
+  const req = request(valid, { "Idempotency-Key": "12345678-1234-4123-8123-123456789abc" });
+  assert.equal((await submit(req)).status, 202);
+  assert.deepEqual(limits, [[req, "12345678-1234-4123-8123-123456789abc", persistence]]);
+  assert.equal(calls.length, 1);
+});
+
+test("a limited client gets 429 with Retry-After and a phone fallback, and nothing is stored", async () => {
+  const { submit, calls, logs } = fixture({ limit: async () => ({ kind: "limited", retryAfter: 120 }) });
+  const response = await submit();
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("retry-after"), "120");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.ok((await response.json()).error.includes("call"));
+  assert.equal(calls.length, 0);
+  assert.deepEqual(logs, [["contact_rate_limited"]]);
+});
+
+test("a limiter outage fails closed with a phone fallback, never unlimited acceptance", async () => {
+  const { submit, calls, logs } = fixture({ limit: async () => ({ kind: "unavailable" }) });
+  const response = await submit();
+  assert.equal(response.status, 503);
+  assert.ok((await response.json()).error.includes("call"));
+  assert.equal(calls.length, 0);
+  assert.deepEqual(logs, [["contact_limiter_unavailable"]]);
 });
 
 test("requires JSON content type", async () => {
@@ -204,6 +235,7 @@ test("the Next route uses current server environment and the site recipient fall
   const route = loadSource("src/app/api/contact/route.ts", {
     "@/lib/server/contact": handler,
     "@/lib/data/site": { site: { email: "fallback@example.test" } },
+    "@/lib/server/inquiries/abuse-limit": { checkContactLimit: async () => ({ kind: "allowed" }) },
     "@/lib/server/inquiries/persistence": {
       getPersistenceConfiguration: () => persistence,
       recordContactInquiry: async (_inquiry, _key, settings) => { calls.push(settings); return { kind: "recorded", inquiryId: "id" }; },

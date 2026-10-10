@@ -280,13 +280,39 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       await rejectsSql(admin, "select public.record_delivery_event('bad id','email.sent','x',$1,now())", [randomUUID()], "23514");
     });
 
+    await t.test("limits: instances share counters; recorded-key retries pass; expired windows are deleted", async () => {
+      const limit = async (subject, key = null, subjectLimit = 5, globalLimit = 1000) => (await asService(
+        "select public.check_contact_limit($1,$2,$3,86400,$4,86400) r", [subject, key, subjectLimit, globalLimit]))[0].r;
+      const subject = randomBytes(32).toString("hex");
+      // Separate connections stand in for separate Vercel instances.
+      const results = await Promise.all(Array.from({ length: 12 }, () => limit(subject)));
+      assert.equal(results.filter((r) => r.allowed).length, 5);
+      for (const r of results.filter((r) => !r.allowed)) assert.ok(r.retryAfter >= 1 && r.retryAfter <= 86400);
+      assert.equal((await limit(subject, randomUUID())).allowed, false);
+      const recorded = randomUUID();
+      assert.equal((await record(recorded)).kind, "recorded");
+      assert.deepEqual(await limit(subject, recorded), { allowed: true });
+      // Site-wide bucket: distinct clients still stop at the global limit.
+      await admin.query("delete from inquiry_private.rate_limit_hits");
+      const spread = await Promise.all(Array.from({ length: 6 }, () => limit(randomBytes(32).toString("hex"), null, 5, 3)));
+      assert.equal(spread.filter((r) => r.allowed).length, 3);
+      await admin.query("insert into inquiry_private.rate_limit_hits values ('global', now() - interval '2 days', now() - interval '1 day', 9)");
+      await limit(subject);
+      assert.equal((await admin.query("select count(*)::int n from inquiry_private.rate_limit_hits where expires_at <= now()")).rows[0].n, 0);
+      const stored = (await admin.query("select bucket from inquiry_private.rate_limit_hits")).rows.map((row) => row.bucket);
+      assert.ok(stored.every((bucket) => /^(global|subject:[0-9a-f]{64})$/.test(bucket)));
+      for (const args of [["not-hex", 5, 60], [subject, 0, 60], [subject, 5, 0], [subject, 5, 90000]]) {
+        await rejectsSql(admin, "select public.check_contact_limit($1,null,$2,$3,5,60)", args, "22023");
+      }
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
         for (const role of ["anon", "authenticated"]) {
           await denied.query(`set role ${role}`);
           await denied.query("select set_config('request.jwt.claims', '{\"role\":\"authenticated\",\"user_metadata\":{\"role\":\"owner\"}}', false)");
-          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status"]) {
+          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits"]) {
             await rejectsSql(denied, `select * from inquiry_private.${table}`, [], "42501");
             await rejectsSql(denied, `delete from inquiry_private.${table}`, [], "42501");
           }
@@ -294,11 +320,12 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
           await rejectsSql(denied, "select * from public.claim_notification_jobs(5, 60)", [], "42501");
           await rejectsSql(denied, "select public.complete_notification_job($1,$2,'accepted','x',null)", [randomUUID(), randomUUID()], "42501");
           await rejectsSql(denied, "select public.record_delivery_event('msg_x','email.sent','x',null,now())", [], "42501");
+          await rejectsSql(denied, "select public.check_contact_limit(repeat('a',64),null,5,60,5,60)", [], "42501");
           await denied.query("reset role");
         }
         // Temporary test-only grants demonstrate RLS independently from missing privileges.
         await admin.query("begin; grant usage on schema inquiry_private to authenticated; grant select on all tables in schema inquiry_private to authenticated; set local role authenticated");
-        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events"]) {
+        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits"]) {
           assert.equal((await admin.query(`select * from inquiry_private.${table}`)).rowCount, 0);
         }
         await admin.query("rollback");
