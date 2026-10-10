@@ -54,15 +54,17 @@ Put image files in `public/photos/`.
 
 ## Contact form
 
-The form (`src/components/contact/contact-form.tsx`) posts to `src/app/api/contact/route.ts`. The route uses `src/lib/server/contact.ts` to validate each submission and email it through [Resend](https://resend.com). It sends with `fetch`, so there is no SDK to install.
+The form (`src/components/contact/contact-form.tsx`) posts to `src/app/api/contact/route.ts`. The route uses `src/lib/server/contact.ts` to validate each submission and store it in Supabase with a notification job. A Vercel Cron job (`vercel.json`, every minute) calls `/api/cron/notifications`, which emails staff through [Resend](https://resend.com) with `fetch` (no SDK). See [supabase/README.md](supabase/README.md).
 
 | Variable | Purpose |
 |---|---|
 | `RESEND_API_KEY` | Resend API key. Server-only. |
 | `CONTACT_FROM_EMAIL` | The sender address. Until the domain is verified in Resend, use its test sender, `Château Capitaine <onboarding@resend.dev>`. |
 | `CONTACT_TO_EMAIL` | Optional. The recipient, which defaults to `site.email`. The test sender only delivers to the Resend account owner's own address, so set this to that address while testing. |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Inquiry storage. Server-only. |
+| `CRON_SECRET` | Authenticates the scheduled worker. Random, 16+ characters. |
 
-If these variables aren't set, the form shows a message asking the guest to call instead.
+If storage or sender settings aren't set, the form shows a message asking the guest to call instead. Without `CRON_SECRET`/`RESEND_API_KEY`, inquiries are stored but no email goes out until they are set.
 
 The endpoint requires JSON, limits submissions to 32 KiB, validates real calendar dates and positive guest counts (1–9999), and quietly discards honeypot submissions. Optional fields can be omitted or blank. Dates are inquiry details; submitting the form does not reserve a table or event.
 

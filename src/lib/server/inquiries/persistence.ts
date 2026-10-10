@@ -12,7 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SENDER = /^(?:[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+|[^<>\r\n]+ <[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+>)$/;
 
-/** B02 is inactive: only a future server intake route may call this module. */
+/** Called only by the contact route (src/app/api/contact/route.ts). */
 export function getPersistenceConfiguration(env: NodeJS.ProcessEnv = process.env): Configuration | null {
   const secretKey = env.SUPABASE_SECRET_KEY?.trim();
   if (!env.SUPABASE_URL || !secretKey?.startsWith("sb_secret_")) return null;

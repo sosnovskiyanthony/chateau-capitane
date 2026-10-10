@@ -1,64 +1,41 @@
 import { parseContactInput } from "./inquiries/contact-input";
+import type { Configuration, recordContactInquiry } from "./inquiries/persistence";
 
-type ContactConfiguration = { apiKey?: string; from?: string; to: string };
+type ContactConfiguration = { persistence: Configuration | null; from?: string; to: string };
 
 export type ContactDependencies = {
   getConfiguration: () => ContactConfiguration;
-  fetch: typeof fetch;
-  logError: (code: string, status?: number) => void;
-  timeoutMs?: number;
+  record: typeof recordContactInquiry;
+  logError: (code: string) => void;
 };
 
 function reply(status: number, body: Record<string, unknown>) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-/** Handles inquiry submission; email acceptance does not confirm a reservation. */
+/** Records an inquiry and its notification job; 202 means stored for staff follow-up, never a booking.
+ * Email is sent later by the notification worker (src/app/api/cron/notifications).
+ */
 export async function handleContact(request: Request, dependencies: ContactDependencies): Promise<Response> {
   const input = await parseContactInput(request);
   if (input.kind === "invalid") return reply(input.status, { error: input.error });
-  if (input.kind === "discard") return reply(200, { ok: true });
-  const { inquiry: enquiry, submissionKey } = input;
+  // Same reply as a recorded inquiry so bots cannot tell they were discarded.
+  if (input.kind === "discard") return reply(202, { ok: true });
   const configuration = dependencies.getConfiguration();
-  if (!configuration.apiKey?.trim() || !configuration.from?.trim() || !configuration.to.trim()) {
+  const from = configuration.from?.trim();
+  const to = configuration.to.trim();
+  if (!configuration.persistence || !from || !to) {
     dependencies.logError("contact_not_configured");
     return reply(503, { error: "The form is unavailable right now." });
   }
-  const details = [
-    `Name: ${enquiry.name}`, `Email: ${enquiry.email}`,
-    enquiry.phone ? `Phone: ${enquiry.phone}` : null, enquiry.date ? `Date: ${enquiry.date}` : null,
-    enquiry.guests ? `Guests: ${enquiry.guests}` : null,
-  ].filter((line) => line !== null);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), dependencies.timeoutMs ?? 10_000);
-  try {
-    const response = await dependencies.fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${configuration.apiKey.trim()}`,
-        "Content-Type": "application/json",
-        ...(submissionKey ? { "Idempotency-Key": `contact/${submissionKey}` } : {}),
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        from: configuration.from.trim(), to: configuration.to.trim(), reply_to: enquiry.email,
-        subject: `Enquiry from ${enquiry.name}`, text: [...details, "", enquiry.message].join("\n"),
-      }),
-    });
-    if (!response.ok) {
-      dependencies.logError("contact_provider_rejected", response.status);
-      void response.body?.cancel().catch(() => {});
-      return reply(502, { error: "The message could not be sent." });
-    }
-    const acknowledgment: unknown = await response.json();
-    if (typeof acknowledgment !== "object" || acknowledgment === null || !("id" in acknowledgment) ||
-        typeof acknowledgment.id !== "string" || !acknowledgment.id.trim()) {
-      dependencies.logError("contact_invalid_acknowledgment");
-      return reply(502, { error: "The message could not be confirmed." });
-    }
-    return reply(200, { ok: true });
-  } catch {
-    dependencies.logError(controller.signal.aborted ? "contact_provider_timeout" : "contact_provider_unavailable");
-    return reply(controller.signal.aborted ? 504 : 502, { error: "The message could not be confirmed. Please call us before resending." });
-  } finally { clearTimeout(timer); }
+  const result = await dependencies.record(input.inquiry, input.submissionKey, { from, to },
+    { configuration: configuration.persistence });
+  if (result.kind === "recorded") return reply(202, { ok: true });
+  if (result.kind === "conflict") {
+    dependencies.logError("contact_key_conflict");
+    return reply(409, { error: "This submission changed. Please send it again." });
+  }
+  // May follow a commit; an unchanged retry with the same key is deduplicated.
+  dependencies.logError("contact_storage_unavailable");
+  return reply(503, { error: "The message could not be confirmed. Please try again or call us." });
 }

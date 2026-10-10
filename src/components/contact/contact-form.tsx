@@ -34,7 +34,7 @@ export function ContactForm() {
       if (submission.current?.body !== body) {
         submission.current = { body, key: crypto.randomUUID() };
       }
-      // Validated and sent by src/app/api/contact/route.ts.
+      // Validated and recorded by src/app/api/contact/route.ts (202 once stored).
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: {
@@ -48,6 +48,8 @@ export function ContactForm() {
         return;
       }
       if (!response.ok) {
+        // A conflicting key never clears; the next attempt starts a new submission.
+        if (response.status === 409) submission.current = null;
         throw new Error(`Contact form failed with status ${response.status}`);
       }
       form.reset();
@@ -169,7 +171,7 @@ export function ContactForm() {
 
       <p aria-live="polite" className="mt-4 text-sm leading-6 text-ivory-muted">
         {status === "sent"
-          ? "Thank you. Your message is on its way, and we’ll reply by email."
+          ? "Thank you. Your message has been recorded for our team to follow up, and we’ll reply by email. This does not confirm a booking."
           : null}
         {status === "invalid"
           ? "Some details didn’t look right. Please check the form and try again."

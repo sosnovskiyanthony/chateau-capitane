@@ -1,15 +1,16 @@
 import { site } from "@/lib/data/site";
 import { handleContact } from "@/lib/server/contact";
+import { getPersistenceConfiguration, recordContactInquiry } from "@/lib/server/inquiries/persistence";
 
-/** Keeps configuration and delivery server-side, with settings read per request. */
+/** Keeps configuration and storage server-side, with settings read per request. */
 export async function POST(request: Request) {
   return handleContact(request, {
     getConfiguration: () => ({
-      apiKey: process.env.RESEND_API_KEY,
+      persistence: getPersistenceConfiguration(),
       from: process.env.CONTACT_FROM_EMAIL,
       to: process.env.CONTACT_TO_EMAIL || site.email,
     }),
-    fetch,
-    logError: (code, status) => console.error("Contact delivery:", code, status ?? ""),
+    record: recordContactInquiry,
+    logError: (code) => console.error("Contact intake:", code),
   });
 }

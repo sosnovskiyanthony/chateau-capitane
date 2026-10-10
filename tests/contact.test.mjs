@@ -34,12 +34,14 @@ function request(body = valid, headers = {}) {
   });
 }
 
+const persistence = { url: "https://example.supabase.co", secretKey: "sb_secret_test" };
+
 function fixture(overrides = {}) {
   const calls = [];
   const logs = [];
   const dependencies = {
-    getConfiguration: () => ({ apiKey: "test-key", from: "sender@example.test", to: "owner@example.test" }),
-    fetch: async (...args) => { calls.push(args); return Response.json({ id: "email-123" }); },
+    getConfiguration: () => ({ persistence, from: "sender@example.test", to: "owner@example.test" }),
+    record: async (...args) => { calls.push(args); return { kind: "recorded", inquiryId: "internal-id" }; },
     logError: (...args) => logs.push(args),
     ...overrides,
   };
@@ -70,55 +72,53 @@ test("discarded and invalid submissions never expose an inquiry to persistence",
   }
 });
 
-test("retry after an accepted email with a lost response produces one mocked delivery", async () => {
-  const accepted = new Map();
-  let delivered = 0;
-  const { submit } = fixture({ fetch: async (_url, options) => {
-    const key = options.headers["Idempotency-Key"];
-    assert.equal(key, "contact/12345678-1234-4123-8123-123456789abc");
-    if (!accepted.has(key)) {
-      accepted.set(key, options.body);
-      delivered++;
-      throw new Error("Provider accepted the email but the connection failed");
-    }
-    assert.equal(accepted.get(key), options.body);
-    return Response.json({ id: "email-once" });
+test("an unchanged retry after unavailable storage reuses the same key", async () => {
+  const keys = [];
+  let first = true;
+  const { submit } = fixture({ record: async (_inquiry, key) => {
+    keys.push(key);
+    if (first) { first = false; return { kind: "unavailable" }; }
+    return { kind: "recorded", inquiryId: "internal-id" };
   } });
   const headers = { "Idempotency-Key": "12345678-1234-4123-8123-123456789abc" };
-  assert.equal((await submit(request(valid, headers))).status, 502);
-  assert.equal((await submit(request(valid, headers))).status, 200);
-  assert.equal(delivered, 1);
+  const failed = await submit(request(valid, headers));
+  assert.equal(failed.status, 503);
+  assert.ok((await failed.json()).error.includes("call"));
+  const ok = await submit(request(valid, headers));
+  assert.equal(ok.status, 202);
+  assert.deepEqual(await ok.json(), { ok: true });
+  assert.deepEqual(keys, [headers["Idempotency-Key"], headers["Idempotency-Key"]]);
 });
 
 for (const key of ["", "arbitrary-key", "x".repeat(257), "12345678-1234-4123-7123-123456789abc"]) {
-  test(`rejects an invalid submission key (${key.length} characters) before delivery`, async () => {
+  test(`rejects an invalid submission key (${key.length} characters) before storage`, async () => {
     const { submit, calls } = fixture();
     assert.equal((await submit(request(valid, { "Idempotency-Key": key }))).status, 400);
     assert.equal(calls.length, 0);
   });
 }
 
-test("legacy clients without a submission key still send without a provider key", async () => {
+test("keyless legacy clients are still recorded, without deduplication", async () => {
   const { submit, calls } = fixture();
-  assert.equal((await submit()).status, 200);
-  assert.equal(Object.hasOwn(calls[0][1].headers, "Idempotency-Key"), false);
+  assert.equal((await submit()).status, 202);
+  assert.equal(calls[0][1], null);
 });
 
-test("sends one normalized plain-text email to the configured recipient", async () => {
+test("records one normalized inquiry with server-controlled notification settings", async () => {
   const { submit, calls } = fixture();
   const response = await submit(request({ ...valid, name: "  Guest\n Name ", phone: "+1 555 0100", date: "2028-02-29", guests: "12", to: "attacker@example.test" }));
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 202);
   assert.deepEqual(await response.json(), { ok: true });
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.equal(calls.length, 1);
-  const [url, options] = calls[0];
-  assert.equal(url, "https://api.resend.com/emails");
-  assert.equal(options.headers.Authorization, "Bearer test-key");
-  assert.deepEqual(JSON.parse(options.body), {
-    from: "sender@example.test", to: "owner@example.test", reply_to: "guest@example.test",
-    subject: "Enquiry from Guest Name",
-    text: "Name: Guest Name\nEmail: guest@example.test\nPhone: +1 555 0100\nDate: 2028-02-29\nGuests: 12\n\nDinner inquiry",
+  const [inquiry, key, settings, options] = calls[0];
+  assert.deepEqual({ ...inquiry }, {
+    name: "Guest Name", email: "guest@example.test", message: "Dinner inquiry",
+    phone: "+1 555 0100", date: "2028-02-29", guests: "12",
   });
+  assert.equal(key, null);
+  assert.deepEqual({ ...settings }, { from: "sender@example.test", to: "owner@example.test" });
+  assert.equal(options.configuration, persistence);
 });
 
 for (const [label, body] of [
@@ -131,17 +131,17 @@ for (const [label, body] of [
   ["fractional guests", { ...valid, guests: "1.5" }], ["negative guests", { ...valid, guests: "-1" }],
   ["too many digits", { ...valid, guests: "10000" }], ["multiline phone", { ...valid, phone: "555\nEmail: other@example.test" }],
 ]) {
-  test(`rejects ${label} without delivery`, async () => {
-    const { submit, calls } = fixture({ getConfiguration: () => { throw new Error("Invalid input must not reach delivery configuration"); } });
+  test(`rejects ${label} without storage`, async () => {
+    const { submit, calls } = fixture({ getConfiguration: () => { throw new Error("Invalid input must not reach storage configuration"); } });
     const response = await submit(request(body));
     assert.equal(response.status, 400);
     assert.equal(calls.length, 0);
   });
 }
 
-test("discards honeypot submissions even without email configuration", async () => {
+test("discards honeypot submissions with the success reply, without configuration", async () => {
   const { submit, calls } = fixture({ getConfiguration: () => { throw new Error("Must not read configuration"); } });
-  assert.equal((await submit(request({ company: "bot" }))).status, 200);
+  assert.equal((await submit(request({ company: "bot" }))).status, 202);
   assert.equal(calls.length, 0);
 });
 
@@ -159,7 +159,7 @@ test("counts streamed bytes when Content-Length is absent or understated", async
   assert.equal(calls.length, 0);
 });
 
-test("rejects a declared oversized request before delivery", async () => {
+test("rejects a declared oversized request before storage", async () => {
   const { submit, calls } = fixture();
   assert.equal((await submit(request(valid, { "Content-Length": "40000" }))).status, 413);
   assert.equal(calls.length, 0);
@@ -167,69 +167,56 @@ test("rejects a declared oversized request before delivery", async () => {
 
 test("allows maximum supported fields and optional blanks", async () => {
   const { submit } = fixture();
-  assert.equal((await submit(request({ ...valid, name: "n".repeat(200), message: "m".repeat(5000), guests: "9999", date: "", phone: "" }))).status, 200);
+  assert.equal((await submit(request({ ...valid, name: "n".repeat(200), message: "m".repeat(5000), guests: "9999", date: "", phone: "" }))).status, 202);
 });
 
-test("missing configuration returns unavailable without exposing settings", async () => {
-  const { submit, calls, logs } = fixture({ getConfiguration: () => ({ to: "owner@example.test" }) });
+for (const configuration of [{ persistence: null, from: "sender@example.test", to: "owner@example.test" },
+  { persistence, to: "owner@example.test" }, { persistence, from: "sender@example.test", to: " " }]) {
+  test(`missing configuration returns unavailable without storage (${JSON.stringify(Object.keys(configuration))})`, async () => {
+    const { submit, calls, logs } = fixture({ getConfiguration: () => configuration });
+    const response = await submit();
+    assert.equal(response.status, 503);
+    assert.equal(calls.length, 0);
+    assert.deepEqual(logs, [["contact_not_configured"]]);
+    assert.ok(!(await response.text()).includes("sb_secret"));
+  });
+}
+
+test("a changed payload under a reserved key is a conflict, not success", async () => {
+  const { submit, logs } = fixture({ record: async () => ({ kind: "conflict" }) });
+  const response = await submit(request(valid, { "Idempotency-Key": "12345678-1234-4123-8123-123456789abc" }));
+  assert.equal(response.status, 409);
+  assert.deepEqual(logs, [["contact_key_conflict"]]);
+});
+
+test("unavailable storage is never acknowledged and exposes no internals", async () => {
+  const { submit, logs } = fixture({ record: async () => ({ kind: "unavailable" }) });
   const response = await submit();
   assert.equal(response.status, 503);
-  assert.equal(calls.length, 0);
-  assert.deepEqual(logs, [["contact_not_configured"]]);
-});
-
-for (const status of [401, 422, 429, 500]) {
-  test(`provider ${status} produces a safe failure`, async () => {
-    const { submit, logs } = fixture({ fetch: async () => new Response("private provider diagnostics test-key", { status }) });
-    const response = await submit();
-    assert.equal(response.status, 502);
-    assert.deepEqual(logs, [["contact_provider_rejected", status]]);
-    assert.ok(!(await response.text()).includes("test-key"));
-  });
-}
-
-for (const acknowledgment of [{}, { id: "" }, { id: 123 }, null]) {
-  test(`does not report success for acknowledgment ${JSON.stringify(acknowledgment)}`, async () => {
-    const { submit } = fixture({ fetch: async () => Response.json(acknowledgment) });
-    assert.equal((await submit()).status, 502);
-  });
-}
-
-test("handles malformed provider JSON and network failures", async () => {
-  for (const fetch of [async () => new Response("not-json"), async () => { throw new Error("private network error"); }]) {
-    const { submit, logs } = fixture({ fetch });
-    assert.equal((await submit()).status, 502);
-    assert.deepEqual(logs, [["contact_provider_unavailable"]]);
-  }
-});
-
-test("aborts a stalled provider request and avoids automatic retries", async () => {
-  let attempts = 0;
-  const { submit, logs } = fixture({
-    timeoutMs: 10,
-    fetch: (_url, { signal }) => new Promise((_resolve, reject) => {
-      attempts++;
-      signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
-    }),
-  });
-  assert.equal((await submit()).status, 504);
-  assert.equal(attempts, 1);
-  assert.deepEqual(logs, [["contact_provider_timeout"]]);
+  const body = await response.json();
+  assert.equal(body.ok, undefined);
+  assert.deepEqual(logs, [["contact_storage_unavailable"]]);
 });
 
 test("the Next route uses current server environment and the site recipient fallback", async () => {
   const calls = [];
-  const env = { RESEND_API_KEY: "test-key", CONTACT_FROM_EMAIL: "sender@example.test" };
+  const env = { CONTACT_FROM_EMAIL: "sender@example.test" };
   const route = loadSource("src/app/api/contact/route.ts", {
     "@/lib/server/contact": handler,
     "@/lib/data/site": { site: { email: "fallback@example.test" } },
-  }, {
-    process: { env }, console: { error: () => {} },
-    fetch: async (_url, options) => { calls.push(JSON.parse(options.body)); return Response.json({ id: "email-123" }); },
-  });
-  assert.equal((await route.POST(request())).status, 200);
+    "@/lib/server/inquiries/persistence": {
+      getPersistenceConfiguration: () => persistence,
+      recordContactInquiry: async (_inquiry, _key, settings) => { calls.push(settings); return { kind: "recorded", inquiryId: "id" }; },
+    },
+  }, { process: { env }, console: { error: () => {} } });
+  assert.equal((await route.POST(request())).status, 202);
   env.CONTACT_TO_EMAIL = "new-owner@example.test";
-  assert.equal((await route.POST(request())).status, 200);
+  assert.equal((await route.POST(request())).status, 202);
   assert.equal(calls[0].to, "fallback@example.test");
   assert.equal(calls[1].to, "new-owner@example.test");
+});
+
+test("vercel.json schedules the notification worker every minute", () => {
+  assert.deepEqual(JSON.parse(readFileSync("vercel.json", "utf8")).crons,
+    [{ path: "/api/cron/notifications", schedule: "* * * * *" }]);
 });

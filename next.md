@@ -6,7 +6,9 @@ Updated: 2026-10-09. Canonical rolling handoff.
 
 Claude Code now builds (rules: [CLAUDE.md](CLAUDE.md), evidence: [docs/claude-workflow.md](docs/claude-workflow.md)); Codex reviews later. Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan → Build → Verify**. B01 complete; B02a/b committed (`a12f3f0`); dependency security slice done (Next 16.4.0).
 
-**Start here: B03b** — switch public intake to durable storage. Route calls `recordContactInquiry` and answers `202 { ok: true }` ("recorded for staff follow-up") only after commit; update the form text and API tests together; add the `vercel.json` cron (`* * * * *` → `/api/cron/notifications`); document key retention (keys stay reserved until B11 retention policy, never reused) and keyless behaviour; remove the direct Resend send from `src/lib/server/contact.ts` (avoid two Resend clients). Local only: no live mail, deploy or provisioning.
+**Start here: B04** — signed Resend delivery webhooks and reconciliation (roadmap B04): bounded raw-body `src/app/api/webhooks/resend/route.ts`, maintained signature verification, deduplicated event IDs, no state regression on out-of-order events; resolve `uncertain` jobs. Research Resend webhook signing (Svix) first. Local only.
+
+B03b done 2026-10-09: `POST /api/contact` now calls `recordContactInquiry` and answers `202 { ok: true }` only after commit (honeypot also 202); 409 on key conflict, 503 on missing config or unconfirmed storage. Direct Resend send removed from `src/lib/server/contact.ts`. Form text: "recorded for our team to follow up … does not confirm a booking"; form drops its key after 409. `vercel.json` cron `* * * * *` → `/api/cron/notifications` (needs Vercel Pro; Hobby rejects minute crons). Key retention/keyless behaviour documented in [supabase/README.md](supabase/README.md). Checks: `npm.cmd test` 48/48, lint, build passed; `/code-review` fixes applied. Unchecked: real HTTP intake through Supabase (B02c), form UI screenshot (text-only change, Playwright MCP not available this session). Deferred review notes: sender-format misconfig logs as `contact_storage_unavailable`; intake returns 202 even if `RESEND_API_KEY`/`CRON_SECRET` are missing (jobs wait; B11 monitoring should alert).
 
 B03a done 2026-10-09 (worker, inactive): scheduler confirmed as Vercel Cron (Bearer `CRON_SECRET`, best-effort, may double-fire, no retries) — the lease design tolerates all three. See "Notification worker" in [supabase/README.md](supabase/README.md).
 
@@ -16,7 +18,7 @@ Owner decision 2026-10-09: **work without virtualization for now.** Do not ask a
 2. Provider selection resolved: owner delegated online research, selection and local building. Vercel Pro + Supabase Pro PostgreSQL/Auth, Vercel `iad1` / Supabase specific `us-east-1`, company-owned accounts, ~$45/month base before extras. [Evidence and alternatives](docs/plans/backend-provider-decision.md). No paid provisioning, push, deployment, live migration or real mail is authorized.
 3. Native PostgreSQL tooling is installed and verified. Docker/Supabase CLI remain unavailable. Establish a full disposable local Supabase stack if compatible container tooling can be installed. Never reset remote targets or count standalone PostgreSQL as gateway/Auth evidence.
 4. B02c must apply migrations through the supported Supabase workflow and exercise the RPC through the gateway with server/anonymous/authenticated keys. Keep private schema unexposed. Staff access stays closed until B06 membership; metadata cannot grant access. B02 remains incomplete until integration is checked.
-5. Keep contact route on direct email until B03 worker, acknowledgment, key policy and tests are ready. Never deliver synthetic jobs.
+5. Contact route records to storage (B03b). Never deliver synthetic jobs.
 6. Dependencies: Next/eslint-config-next 16.4.0 fixed the critical next/og RCE; `npm audit --omit=dev` reports 0. Five high remain in the dev-only ESLint glob chain with no upstream fix; recheck before release. Docker blocked 2026-10-09: firmware virtualization disabled, WSL not installed.
 
 ## Completed and verified
@@ -33,7 +35,7 @@ Owner decision 2026-10-09: **work without virtualization for now.** Do not ask a
 ## Constraints and Git
 
 - Preserve OpenTable Book now and all Call buttons. Inquiries never confirm bookings. Lunch: three courses, beverages excluded. New photos: verified 2026 posts with provenance; existing assets remain.
-- Current form retries share a UUID only while mounted; Resend deduplication lasts 24 hours. Persistence remains inactive.
+- Form retries share a UUID only while mounted; the database deduplicates by key (keys never expire until B11).
 - Branch `codex/backend-foundation`; origin `https://github.com/sosnovskiyanthony/chateau-capitane`. Approved local baseline `dbd290f` verified. B02 code/docs and unrelated raw benchmark traces uncommitted. Commit only when asked; push/deployment unauthorized.
 - Operator decisions needed before B06; retention before B11. No provider decision is pending for local work.
 

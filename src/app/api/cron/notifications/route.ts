@@ -9,7 +9,7 @@ function reply(status: number, body: Record<string, unknown>) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-/** Vercel Cron sends `Authorization: Bearer $CRON_SECRET`. B03a: no schedule is configured yet. */
+/** Vercel Cron sends `Authorization: Bearer $CRON_SECRET`. Scheduled every minute in vercel.json. */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
   const digest = (value: string) => createHash("sha256").update(value).digest();
