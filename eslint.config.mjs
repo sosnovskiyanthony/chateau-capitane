@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
     // Agent tooling — vendored skill/agent scripts, not application source.
     ".claude/**",
     ".agents/**",
+    // Local package cache and generated PostgreSQL clusters are not source.
+    ".npm-cache/**",
+    ".local-db-tests/**",
   ]),
 ]);
 

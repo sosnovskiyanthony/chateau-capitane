@@ -40,6 +40,16 @@ Mock tests simulate a provider accepting an email while its response is lost, th
 
 ## Verification and next decisions
 
+### Inactive persistence foundation
+
+B02a/b implemented locally on 2026-10-09: [Supabase migration and local test instructions](../supabase/README.md), private inquiry/key/job tables, atomic retry-aware intake RPC, synthetic seeds and `src/lib/server/inquiries/persistence.ts`. The module is server-only and is not called by the contact route. Public request/response and direct email behavior above remain unchanged.
+
+The database computes a versioned fingerprint, claims keys uniquely and writes an inquiry with its immutable notification snapshot in the same transaction. Matching retries return an internal recorded result; changed input/configuration conflicts. Keyless requests lack deduplication. Private grants and RLS deny anonymous and authenticated access, including claimed staff; trusted staff membership is deferred to B06. Keys remain reserved without cleanup until B03 establishes policy.
+
+Verified: 48 application tests, real PostgreSQL suite (eight behavior cases plus its parent test), lint and production build passed. SQL checks use independent connections and include reconnect, concurrent retries/conflicts, rollback, constraints, payload immutability and role/RLS denial. This proves local PostgreSQL properties, not full Supabase API/Auth integration. B02c gateway/Auth checks remain unrun. Initial sandbox test/build worker `spawn EPERM` resolved with approved escalation; the existing parent lockfile build warning remains. Installation audit reported nine existing dependency advisories (eight high, one critical, including Next.js); existing locked package versions were unchanged. Address these before production release in a separate dependency slice.
+
+Production stack selected under delegated authority: Vercel Pro, Supabase Pro PostgreSQL/Auth, Northern Virginia, company-owned accounts. [Research, alternatives, budget and scope](plans/backend-provider-decision.md). No paid service, deployment, live migration or mail has occurred.
+
 The complete implementation sequence is in [the backend roadmap](plans/backend-roadmap.md); [next.md](../next.md) names the next slice. This document describes implemented behavior, not planned capabilities.
 
 `npm test` uses mocked delivery for validation, body limits, honeypot, environment wiring, successful send, provider failures, and timeout. `npm run lint` and `npm run build` remain required for application changes. No live delivery is claimed from mock tests.

@@ -1,6 +1,6 @@
 # Backend implementation roadmap
 
-Updated: 2026-10-09. Status: B01 verified; B02 is next, pending provider/host decision.
+Updated: 2026-10-09. B01 verified; B02a/b locally verified, B02c Supabase integration next. Provider selection resolved.
 
 This is the durable plan. [next.md](../../next.md) is the concise rolling handoff. Follow **Research → Plan → Build → Verify** for each slice; read the relevant section rather than loading the entire project history.
 
@@ -19,9 +19,9 @@ Payments, ordering, inventory, a custom booking engine, customer accounts, marke
 - Next 16.3.5, React 19.2.8, TypeScript, Tailwind 4, npm. Read installed `node_modules/next/dist/docs/` before writing framework code.
 - `POST /api/contact` validates bounded JSON, discards honeypot submissions, sends through Resend, verifies acknowledgment and returns safe failures. [Implemented API contract](../backend.md).
 - The form guards overlapping submits and reuses a UUID key for unchanged retries in the same mounted form. Provider deduplication lasts 24 hours; reload loses the form key.
-- No database, durable queue, staff auth/admin, distributed limiter or content editor exists. Public content lives in `src/lib/data/`.
-- Prior-session results: 41 mocked contact tests, lint and build passed. This documentation task does not rerun or establish those application checks. Live delivery remains unverified.
-- Branch `main`; origin `https://github.com/sosnovskiyanthony/chateau-capitane`. Many frontend, photo, contact and Codex migration changes are uncommitted. Do not discard or blindly stage them.
+- Inactive local PostgreSQL inquiry/key/job storage and a server RPC caller now exist. Public intake remains direct email. No worker, staff auth/admin, distributed limiter or content editor exists.
+- Current results: 48 application tests, eight real PostgreSQL behavior cases plus parent, lint/build passed. Full Supabase gateway/Auth and live delivery remain unverified.
+- Branch `codex/backend-foundation`; baseline `dbd290f` committed. B02 changes and unrelated raw benchmark traces uncommitted; preserve them. Origin `https://github.com/sosnovskiyanthony/chateau-capitane`.
 
 ## Research and architecture
 
@@ -37,7 +37,7 @@ Official sources checked 2026-10-08. These establish capabilities and constraint
 | [Supabase migrations](https://supabase.com/docs/guides/local-development/database-migrations) support reproducible local schemas and seeds. | Version migrations and synthetic fixtures; verify against a disposable local database before remote application. |
 | [Vercel cron](https://vercel.com/docs/cron-jobs/manage-cron-jobs) supports authenticated invocation but runs can be missed or duplicated. | Scheduler triggers work; the database/application must own durable claims, leases, deduplication and backlog monitoring. |
 
-Recommended starting architecture, **pending owner confirmation**: one Next.js application; Supabase PostgreSQL for data and Auth for invited staff; existing Resend notifications; Supabase Storage if managed uploads are needed. If Vercel is selected, evaluate its scheduler's current limits; otherwise use the chosen host's supported scheduler/worker. Start with a transactional database outbox, rather than separate queue infrastructure or microservices.
+Selected under the owner's delegated selection authority, 2026-10-09: Next.js on Vercel Pro; Supabase Pro PostgreSQL/Auth, with Storage for future media; existing Resend. Co-locate Vercel `iad1` and Supabase `us-east-1`, use company-owned accounts, budget approximately $45/month base before extras. [Research and alternatives](backend-provider-decision.md). Pro cron supports minute-level invocation; worker recovery remains B03. No paid provisioning/deployment occurred.
 
 This recommendation is engineering judgment for a small restaurant site with fewer systems to manage. It is not proof of maximum speed, minimum cost, or permission to provision accounts, buy services, deploy or migrate live data. Keep provider-specific code in focused server modules; avoid a generic multi-provider framework.
 
@@ -45,7 +45,7 @@ This recommendation is engineering judgment for a small restaurant site with few
 
 | Decision | Needed before | Proposal, not approval |
 | --- | --- | --- |
-| Host/database, ownership, budget and region | B02 provider setup; B03 scheduler | Supabase PostgreSQL; do not assume Vercel is already selected. |
+| Host/database, ownership, budget and region | Resolved for local implementation; paid provisioning separate | Vercel Pro + Supabase Pro, Northern Virginia, company ownership, ~$45/month base; see selected-stack research. |
 | Initial operators and invitation/revocation authority | B06 provisioning | Invited owner/staff; no public admin registration. |
 | Guest-data, audit and backup retention | B11 deletion automation | Owner chooses periods; do not invent legal requirements or delete real data. |
 | Sender, recipient, verified domain and authorized test address | B03 live mail test | Existing Resend; server-controlled recipient. |
@@ -76,7 +76,7 @@ Server authorization and database policies protect private data. Admin/inquiry r
 
 ## Ordered slices
 
-B01 is complete; B02–B12 are queued. The contact foundation still sends directly through Resend. Keep intermediate work inactive until its dependencies and checks pass.
+B01 complete; B02a/b locally verified, B02c integration remains; B03–B12 queued. Contact still sends directly through Resend. Keep intermediate work inactive until its dependencies and checks pass.
 
 | Slice | Depends on | Deliverable |
 | --- | --- | --- |
@@ -191,7 +191,9 @@ Application slices require `npm.cmd test`, `npm.cmd run lint`, `npm.cmd run buil
 | Research/roadmap | Complete | Repository inventory and official sources, 2026-10-08. |
 | Handoff/process wiring | Complete | `next.md`; root instructions and workflow reference it. |
 | B01 | Complete, 2026-10-09 | `src/lib/server/inquiries/contact-input.ts`, delivery handler and contact tests. All 43 tests, lint and build passed; delivery code unchanged. Sandbox test-worker failure resolved by approved escalation; existing build lockfile warning remains. No live mail/DB verification. |
-| B02 | Next — provider decision pending | Confirm PostgreSQL/provider and host; research local DB tooling, then plan migrations/transaction tests. |
+| B02a/b | Implemented and locally verified, 2026-10-09 | [Selected stack](backend-provider-decision.md), [B02 results](b02-persistence.md), migration/seeds, server-only caller and native PostgreSQL tests. 48 app tests, eight DB cases plus parent, lint/build passed. Sandbox worker failures resolved by escalation. Public route unchanged; staff access closed until B06. |
+| B02c | Integration unrun; B02 incomplete | Full Supabase gateway/Auth/migration workflow requires compatible local container tooling or authorized isolated staging. Standalone PostgreSQL proves SQL properties only. No remote reset/live migration. |
+| Dependency readiness | Resolve before release | Nine existing audit advisories (eight high, one critical, including Next.js). Previously locked versions unchanged; scoped upgrades deferred. |
 | B03–B12 | Queued | Follow dependencies; decide external choices at point of use. |
 | Baseline commit/push | Local commit authorized, 2026-10-09; push not authorized | Branch `codex/backend-foundation`; [approved baseline scope](baseline-git-review.md). Verify commit execution with Git; raw benchmark logs excluded. |
 

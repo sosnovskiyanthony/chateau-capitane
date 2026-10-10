@@ -44,3 +44,6 @@ node_modules
 
 # playwright mcp screenshots and console logs
 /.playwright-mcp/
+# Workspace-local package cache and disposable PostgreSQL fixtures.
+.npm-cache/
+.local-db-tests/

@@ -1,36 +1,36 @@
 # Next backend session
 
-Updated: 2026-10-09. Canonical rolling handoff; replace stale state after every completed feature or slice.
+Updated: 2026-10-09. Canonical rolling handoff.
 
 ## Objective and starting task
 
-Follow [the backend roadmap](docs/plans/backend-roadmap.md), always **Research → Plan → Build → Verify**. **B01 is complete. Start B02: persistence foundation.**
+Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan → Build → Verify**. B01 complete; **B02a/b locally verified. Continue B02c: full Supabase integration verification.**
 
-1. Check `git status --short`; preserve the accumulated uncommitted work. Read `AGENTS.md`, [the implemented contract](docs/backend.md) and the roadmap's B02 section. Do not repeat B01.
-2. Check whether the owner answered the provider question: proposed Supabase PostgreSQL/Auth, with website hosting undecided. No decision has been received as of this snapshot. Confirm provider/host/account ownership/budget/region before provider-specific setup; use any later answer instead of asking again.
-3. While the decision is pending, inspect existing local database tooling and plan the inquiry/key/outbox transaction and access tests. Do not provision services, apply live migrations or silently substitute in-memory storage.
-4. After the provider decision, implement migrations, synthetic seeds, server-only configuration and a focused transactional repository. Use the valid inquiry contract in `src/lib/server/inquiries/contact-input.ts`. Keep public intake on existing direct email behavior until B03's worker and durable acknowledgment are ready.
-5. Verify migrations and concurrency/rollback/access against a disposable local database, plus `npm.cmd test`, `npm.cmd run lint`, `npm.cmd run build`. Mock tests cannot prove DB properties. Record missing tooling as a blocker, not a pass.
-6. Update roadmap progress and this file after each verified part. Tell the user when the saved handoff is ready for clearing context.
+1. Check Git state; preserve B02 changes and unrelated benchmark traces. Read [B02 results](docs/plans/b02-persistence.md) and [persistence instructions](supabase/README.md). Do not repeat B01/provider research.
+2. Provider selection resolved: owner delegated online research, selection and local building. Vercel Pro + Supabase Pro PostgreSQL/Auth, Vercel `iad1` / Supabase specific `us-east-1`, company-owned accounts, ~$45/month base before extras. [Evidence and alternatives](docs/plans/backend-provider-decision.md). No paid provisioning, push, deployment, live migration or real mail is authorized.
+3. Native PostgreSQL tooling is installed and verified. Docker/Supabase CLI remain unavailable. Establish a full disposable local Supabase stack if compatible container tooling can be installed. Never reset remote targets or count standalone PostgreSQL as gateway/Auth evidence.
+4. B02c must apply migrations through the supported Supabase workflow and exercise the RPC through the gateway with server/anonymous/authenticated keys. Keep private schema unexposed. Staff access stays closed until B06 membership; metadata cannot grant access. B02 remains incomplete until integration is checked.
+5. Keep contact route on direct email until B03 worker, acknowledgment, key policy and tests are ready. Never deliver synthetic jobs.
+6. Resolve existing dependency advisories before release in a separate upgrade slice: audit reported eight high and one critical, including Next.js. No previously locked versions changed in B02.
 
 ## Completed and verified
 
-- B01 isolated parsing/validation and introduced `NormalizedInquiry` (six bounded normalized strings). Valid/discard/invalid results prevent honeypot or invalid input from reaching future storage. The handler's configuration and email-delivery code remain unchanged.
-- Changed paths: `src/lib/server/inquiries/contact-input.ts`, `src/lib/server/contact.ts`, `tests/contact.test.mjs`, `docs/backend.md`, roadmap and this handoff.
-- 2026-10-09: **43/43 mocked tests, lint and production build passed**. Initial sandbox test-worker `spawn EPERM` resolved by approved escalation. Build retains the existing parent-directory lockfile warning. No UI changes or live mail; no DB exists yet.
-- Next 16.3.5 / React 19.2.8 / npm. Read installed Next.js guides before framework code.
+- B01 parsing contract is in baseline `dbd290f`; only valid results expose six normalized readonly strings.
+- B02a/b: `supabase/migrations/202610090001_inquiry_foundation.sql`, synthetic `supabase/seed.sql`, `src/lib/server/inquiries/persistence.ts`, `tests/persistence.test.mjs`, `tests/db/persistence.test.mjs`, server-only env settings and docs. One invoker RPC atomically claims key, inserts inquiry and snapshots notification. Database SHA-256 fingerprints fixed inquiry fields and notification configuration/version. UUID key case deduplicates; changed payload conflicts. No expiry/cleanup/reuse policy yet.
+- Private grants and RLS deny anonymous/authenticated/claimed staff. Service role has private select/insert grants; job payload is immutable. Calendar strings retain ISO year zero accepted by B01. No worker/Auth/admin exists.
+- 2026-10-09: `npm.cmd test` **48/48 passed**; `npm.cmd run test:db` **eight behavior cases plus parent passed** on native PostgreSQL 17.10. Empty rebuild/seeds, reconnect, concurrent retry/conflict, rollback with lock-blocked competitor, keyless calls, constraints, immutable payload, grants and independent RLS denial checked. Full Supabase gateway/Auth integration **unrun**.
+- Lint and production build passed. Initial sandbox test/build `spawn EPERM` resolved by approved escalation. Existing parent-directory lockfile build warning remains. No UI changes or live email/hosted DB.
+- Pinned dev-only embedded-postgres/pg; runtime server-only. DB tests use unique ignored `.local-db-tests/run-*`, random passwords/ports, loopback and no external connection URL. Clusters stop after tests; fixtures remain for diagnosis. `.npm-cache/` also ignored.
 
-## Constraints and Git checkpoint
+## Constraints and Git
 
-- Keep OpenTable Book now and all Call buttons. Inquiries do not confirm bookings. Lunch is three courses, beverages excluded.
-- New downloaded photos: **2026 posts only**; [provenance](docs/photo-sources.md). Existing older assets remain; venue/chef placeholders remain.
-- Form retries share a UUID only while the form stays mounted; Resend deduplication is limited to 24 hours.
-- Branch `codex/backend-foundation`; origin `https://github.com/sosnovskiyanthony/chateau-capitane`. The owner authorized the reviewed local baseline commit on 2026-10-09. Check `git log -1 --oneline` and current status to verify execution before resuming.
-- [Git baseline scope](docs/plans/baseline-git-review.md): accumulated frontend/photo/Codex/backend work and B01 checks; this handoff and authorization record are included. Raw benchmark traces remain local pending publication review. **Push is not authorized.** Do not ask again for the approved local baseline commit. No deployment, live migration, invitation or real test email is authorized.
-- Owner/staff decisions are needed before B06; retention before B11. Continue independent local work while decisions are pending.
+- Preserve OpenTable Book now and all Call buttons. Inquiries never confirm bookings. Lunch: three courses, beverages excluded. New photos: verified 2026 posts with provenance; existing assets remain.
+- Current form retries share a UUID only while mounted; Resend deduplication lasts 24 hours. Persistence remains inactive.
+- Branch `codex/backend-foundation`; origin `https://github.com/sosnovskiyanthony/chateau-capitane`. Approved local baseline `dbd290f` verified. B02 code/docs and unrelated raw benchmark traces uncommitted. Commit only when asked; push/deployment unauthorized.
+- Operator decisions needed before B06; retention before B11. No provider decision is pending for local work.
 
 ## Reset protocol
 
-Update this file and the roadmap after every completed feature/part; keep failures and inactive work explicit. `HANDOFF.md` is only a pointer. At a stable checkpoint say the context can be cleared.
+Update this file and roadmap after verified slices; keep missing checks explicit. `HANDOFF.md` remains a pointer. This local checkpoint is ready for clearing context.
 
-Fresh-session prompt: **Read next.md and follow its starting task.**
+Fresh-session prompt: **Read next.md and continue B02c.**
