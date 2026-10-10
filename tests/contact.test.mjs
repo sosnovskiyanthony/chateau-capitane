@@ -283,7 +283,8 @@ test("the Next route uses current server environment and the site recipient fall
   assert.equal((await route.POST(request({ ...valid, event: "kids" }))).status, 400);
 });
 
-test("vercel.json schedules the notification worker every minute", () => {
+test("vercel.json schedules the notification worker every minute and retention daily", () => {
   assert.deepEqual(JSON.parse(readFileSync("vercel.json", "utf8")).crons,
-    [{ path: "/api/cron/notifications", schedule: "* * * * *" }]);
+    [{ path: "/api/cron/notifications", schedule: "* * * * *" },
+      { path: "/api/cron/retention", schedule: "17 3 * * *" }]);
 });

@@ -609,6 +609,46 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       await admin.query("update inquiry_private.notification_jobs set available_at = now() + interval '1 hour' where inquiry_id = $1", [created.inquiryId]);
     });
 
+    await t.test("retention: old resolved inquiries go with their data; open, recent and active ones stay; bounded and repeatable", async () => {
+      const q = async (sql, v = []) => (await admin.query(sql, v)).rows;
+      const make = async (status, age, jobState) => {
+        const { inquiryId } = await record();
+        const [job] = await q("select id from inquiry_private.notification_jobs where inquiry_id=$1", [inquiryId]);
+        await q("update inquiry_private.notification_jobs set state=$2, provider_message_id=case when $2='accepted' then 'em_'||$1 end where id=$3", [inquiryId, jobState, job.id]);
+        await q("insert into inquiry_private.inquiry_notes(inquiry_id, author_id, author_email, body) values ($1,$2,'s@example.invalid','note')", [inquiryId, randomUUID()]);
+        await q("insert into inquiry_private.audit_events(action, inquiry_id, from_value, to_value) values ('status_changed',$1,'new','resolved')", [inquiryId]);
+        await q("insert into inquiry_private.delivery_events(event_id,event_type,email_id,job_id,occurred_at) values ($1,'email.delivered','em_x',$2,now())", ["ev_" + inquiryId, job.id]);
+        await q("update inquiry_private.inquiries set status=$2, updated_at=now()-$3::interval where id=$1", [inquiryId, status, age]);
+        return inquiryId;
+      };
+      const old1 = await make("resolved", "25 months", "accepted");
+      const old2 = await make("resolved", "30 months", "failed");
+      const open = await make("in_progress", "40 months", "accepted");
+      const recent = await make("resolved", "23 months", "accepted");
+      const active = await make("resolved", "26 months", "pending");
+      await q("update inquiry_private.delivery_events set received_at = now() - interval '91 days' where event_id = $1", ["ev_" + recent]);
+      await q("update inquiry_private.submission_keys set created_at = now() - interval '91 days' where inquiry_id = $1", [recent]);
+      await q("insert into inquiry_private.audit_events(action, subject_user, to_value, created_at) values ('role_granted',$1,'staff', now() - interval '25 months')", [randomUUID()]);
+      const alive = async (id) => (await q("select count(*)::int n from inquiry_private.inquiries where id=$1", [id]))[0].n;
+      const first = (await asService("select public.run_retention(1) r"))[0].r;
+      assert.equal(first.inquiries, 1);
+      const second = (await asService("select public.run_retention(200) r"))[0].r;
+      assert.equal(second.inquiries, 1);
+      for (const field of ["deliveryEvents", "submissionKeys", "auditEvents"]) assert.ok(first[field] + second[field] >= 1, field);
+      for (const id of [old1, old2]) {
+        assert.equal(await alive(id), 0);
+        for (const table of ["notification_jobs", "inquiry_notes", "audit_events", "submission_keys"]) {
+          assert.equal((await q(`select count(*)::int n from inquiry_private.${table} where inquiry_id=$1`, [id]))[0].n, 0);
+        }
+        assert.equal((await q("select count(*)::int n from inquiry_private.delivery_events where event_id=$1", ["ev_" + id]))[0].n, 0);
+      }
+      for (const id of [open, recent, active]) assert.equal(await alive(id), 1);
+      assert.equal((await q("select count(*)::int n from inquiry_private.notification_jobs where inquiry_id=$1", [active]))[0].n, 1);
+      assert.equal((await q("select count(*)::int n from inquiry_private.delivery_events where event_id=$1", ["ev_" + recent]))[0].n, 0);
+      assert.deepEqual(await asService("select public.run_retention(200) r").then((r) => r[0].r), { inquiries: 0, deliveryEvents: 0, submissionKeys: 0, auditEvents: 0 });
+      await rejectsSql(admin, "select public.run_retention(0)", [], "22023");
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
@@ -631,6 +671,7 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
           await rejectsSql(denied, "select public.staff_set_inquiry_status($1,'x',$1,1,'resolved')", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_add_inquiry_note($1,'x',$1,'y')", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.ops_snapshot()", [], "42501");
+          await rejectsSql(denied, "select public.run_retention(1)", [], "42501");
           await rejectsSql(denied, "select public.published_content()", [], "42501");
           await rejectsSql(denied, "select public.staff_content_state($1)", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_content_revision($1,1)", [randomUUID()], "42501");
