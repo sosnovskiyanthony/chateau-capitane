@@ -6,9 +6,9 @@ Updated: 2026-10-09. Canonical rolling handoff.
 
 Claude Code now builds (rules: [CLAUDE.md](CLAUDE.md), evidence: [docs/claude-workflow.md](docs/claude-workflow.md)); Codex reviews later. Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan → Build → Verify**. B01 complete; B02a/b committed (`a12f3f0`); dependency security slice done (Next 16.4.0).
 
-**Start here:** ask the owner whether BIOS virtualization is enabled now.
-- **Yes** → verify (`systeminfo`: "Virtualization Enabled In Firmware: Yes"), install WSL2 + Docker Desktop (`winget install Docker.DockerDesktop`; owner clicks UAC/restart), install Supabase CLI as a dev dependency, then do **B02c** below.
-- **No** → start **B03** (durable intake + worker) locally against native PostgreSQL tests; keep B02c marked blocked. Confirm the scheduler from [the provider decision](docs/plans/backend-provider-decision.md) (Vercel Pro stack) before writing worker code.
+**Start here: B03** (durable intake + worker), built and tested locally against native PostgreSQL (`npm.cmd run test:db`). Confirm the scheduler from [the provider decision](docs/plans/backend-provider-decision.md) (Vercel Pro stack) before writing worker code.
+
+Owner decision 2026-10-09: **work without virtualization for now.** Do not ask about it or try Docker. B02c (full Supabase gateway/Auth check) stays blocked and must be done before any release. When the owner enables BIOS virtualization: install WSL2 + Docker Desktop (`winget install Docker.DockerDesktop`) and the Supabase CLI, then run B02c and re-run B03+ integration through the gateway.
 
 1. Check Git state; preserve unrelated benchmark traces (never commit them). Read [B02 results](docs/plans/b02-persistence.md) and [persistence instructions](supabase/README.md). Do not repeat B01/provider research.
 2. Provider selection resolved: owner delegated online research, selection and local building. Vercel Pro + Supabase Pro PostgreSQL/Auth, Vercel `iad1` / Supabase specific `us-east-1`, company-owned accounts, ~$45/month base before extras. [Evidence and alternatives](docs/plans/backend-provider-decision.md). No paid provisioning, push, deployment, live migration or real mail is authorized.
