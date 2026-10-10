@@ -4,12 +4,12 @@ import { Container } from "@/components/layout/container";
 import { CtaLink } from "@/components/ui/cta-link";
 import { Leader } from "@/components/ui/leader";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { getPrivateEventTiers } from "@/lib/data/private-events";
+import { priceRange } from "@/components/private-events/private-events-view";
+import { getSiteContent } from "@/lib/server/content/content";
 
-export function PrivateEventsTeaser() {
-  const tiers = getPrivateEventTiers();
-  const lowest = Math.min(...tiers.map((tier) => tier.pricePerPerson));
-  const highest = Math.max(...tiers.map((tier) => tier.pricePerPerson));
+export async function PrivateEventsTeaser() {
+  const tiers = (await getSiteContent()).packages;
+  const { lowest, highest } = priceRange(tiers);
 
   return (
     <section className="bg-ink-800">

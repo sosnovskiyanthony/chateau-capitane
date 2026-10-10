@@ -194,6 +194,15 @@ test("a limiter outage fails closed with a phone fallback, never unlimited accep
   assert.deepEqual(logs, [["contact_limiter_unavailable"]]);
 });
 
+test("an event inquiry while published content is unreadable gets 503 with a phone fallback", async () => {
+  const { submit, calls, logs } = fixture({ packages: async () => { throw new Error("content_unavailable"); } });
+  const response = await submit(request({ ...valid, event: "banquet-140" }));
+  assert.equal(response.status, 503);
+  assert.ok((await response.json()).error.includes("call"));
+  assert.equal(calls.length, 0);
+  assert.deepEqual(logs, [["contact_content_unavailable"]]);
+});
+
 test("requires JSON content type", async () => {
   const { submit, calls } = fixture();
   assert.equal((await submit(request(valid, { "Content-Type": "text/plain" }))).status, 415);
@@ -256,14 +265,21 @@ test("the Next route uses current server environment and the site recipient fall
     "@/lib/server/inquiries/abuse-limit": { checkContactLimit: async () => ({ kind: "allowed" }) },
     "@/lib/server/inquiries/persistence": {
       getPersistenceConfiguration: () => persistence,
-      recordContactInquiry: async (_inquiry, _key, settings) => { calls.push(settings); return { kind: "recorded", inquiryId: "id" }; },
+      recordContactInquiry: async (inquiry, _key, settings) => { calls.push({ ...settings, inquiry }); return { kind: "recorded", inquiryId: "id" }; },
     },
+    // Published content: the $140 banquet repriced to $145 and the kids package withdrawn.
+    "@/lib/server/content/content": { getSiteContent: async () => ({ packages: privateEvents.getPrivateEventTiers()
+      .filter((tier) => tier.id !== "kids").map((tier) => tier.id === "banquet-140" ? { ...tier, pricePerPerson: 145 } : tier) }) },
   }, { process: { env }, console: { error: () => {} } });
   assert.equal((await route.POST(request())).status, 202);
   env.CONTACT_TO_EMAIL = "new-owner@example.test";
   assert.equal((await route.POST(request())).status, 202);
   assert.equal(calls[0].to, "fallback@example.test");
   assert.equal(calls[1].to, "new-owner@example.test");
+  // Event inquiries snapshot the published package, not the built-in one.
+  assert.equal((await route.POST(request({ ...valid, event: "banquet-140" }))).status, 202);
+  assert.equal(calls[2].inquiry.eventPackage, "Banquet, $145 per person");
+  assert.equal((await route.POST(request({ ...valid, event: "kids" }))).status, 400);
 });
 
 test("vercel.json schedules the notification worker every minute", () => {

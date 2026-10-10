@@ -11,6 +11,7 @@ export default async function AdminPage() {
         intro={`Signed in as ${staff.email || "staff member"} (${staff.role}).`} />
       <div className="mt-10 flex flex-wrap gap-4">
         <CtaLink href="/admin/inquiries">Open inquiries</CtaLink>
+        <CtaLink href="/admin/content" variant="secondary">Website content</CtaLink>
         <form action={logout}>
           <button type="submit" className={ctaClassName("secondary")}>Sign out</button>
         </form>

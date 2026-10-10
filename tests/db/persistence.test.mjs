@@ -483,13 +483,68 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
       } finally { await server.end(); }
     });
 
+    await t.test("content: drafts are versioned, concurrent saves detected, publication and rollback, staff-only writes", async () => {
+      const staff = randomUUID(), revoked = randomUUID();
+      await admin.query("insert into inquiry_private.staff_members(user_id, role) values ($1,'staff'),($2,'owner')", [staff, revoked]);
+      const call = async (fn, args) => (await asService(`select public.${fn}(${args.map((_, i) => `$${i + 1}`).join(",")}) r`, args))[0].r;
+      const save = (base, document, who = staff) => call("staff_save_content_draft", [who, "editor@example.invalid", base, document]);
+      const live = async () => (await asService("select public.published_content() r"))[0].r;
+      const v1 = { menuNotes: ["first"] }, v2 = { menuNotes: ["second"] };
+
+      assert.equal(await live(), null);
+      assert.deepEqual((await call("staff_content_state", [staff])), { draft: null, publishedId: null, revisions: [], publications: [] });
+      const first = await save(null, v1);
+      assert.equal(first.kind, "saved");
+      assert.equal((await save(null, v1)).kind, "stale");
+      // Two editors loaded the same draft: exactly one save wins.
+      const racing = await Promise.all([save(first.id, v2), save(first.id, { menuNotes: ["other"] })]);
+      assert.deepEqual(racing.map((r) => r.kind).sort(), ["saved", "stale"]);
+      const second = racing.find((r) => r.kind === "saved");
+      const state = await call("staff_content_state", [staff]);
+      assert.deepEqual([state.draft.id, state.publishedId, state.revisions.map((r) => r.id)], [second.id, null, [second.id, first.id]]);
+      assert.equal(state.draft.author, "editor@example.invalid");
+
+      // Drafts stay private until published; publishing an older revision rolls back.
+      assert.equal(await live(), null);
+      assert.deepEqual(await call("staff_publish_content", [staff, "editor@example.invalid", second.id]), { kind: "published" });
+      assert.deepEqual(await live(), { revision: second.id, document: (await call("staff_content_revision", [staff, second.id])).document });
+      assert.equal((await save(second.id, { menuNotes: ["draft only"] })).kind, "saved");
+      assert.equal((await live()).revision, second.id);
+      assert.equal((await call("staff_publish_content", [staff, "editor@example.invalid", first.id])).kind, "published");
+      assert.deepEqual(await live(), { revision: first.id, document: v1 });
+      assert.deepEqual((await call("staff_publish_content", [staff, "x", 999999])).kind, "not_found");
+      assert.equal(await call("staff_content_revision", [staff, 999999]), null);
+      const history = (await call("staff_content_state", [staff])).publications;
+      assert.deepEqual(history.map((p) => [p.revision, p.by]), [[first.id, "editor@example.invalid"], [second.id, "editor@example.invalid"]]);
+
+      // Shape and size bounds; only current staff can read or write; the server key cannot write tables directly.
+      const head = (await call("staff_content_state", [staff])).draft.id;
+      await assert.rejects(save(head, "[1, 2]"), (e) => e.code === "23514");
+      await assert.rejects(save(head, { big: "x".repeat(262144) }), (e) => e.code === "23514");
+      await admin.query("delete from inquiry_private.staff_members where user_id=$1", [revoked]);
+      for (const [fn, args] of [["staff_content_state", [revoked]], ["staff_content_revision", [revoked, first.id]],
+        ["staff_save_content_draft", [revoked, "x", head, v1]], ["staff_publish_content", [revoked, "x", second.id]],
+        ["staff_publish_content", [null, "x", second.id]]]) {
+        await assert.rejects(call(fn, args), (e) => e.code === "42501");
+      }
+      assert.equal((await live()).revision, first.id);
+      const server = await connect();
+      try {
+        await server.query("set role service_role");
+        await rejectsSql(server, "insert into inquiry_private.content_revisions(document, author_id, author_email) values ('{}', $1, 'x')", [staff], "42501");
+        await rejectsSql(server, "insert into inquiry_private.content_publications(revision_id, publisher_id, publisher_email) values ($1, $2, 'x')", [first.id, staff], "42501");
+        await rejectsSql(server, "update inquiry_private.content_revisions set document='{}'", [], "42501");
+        await rejectsSql(server, "delete from inquiry_private.content_publications", [], "42501");
+      } finally { await server.end(); }
+    });
+
     await t.test("anonymous, authenticated and claimed staff cannot read/write/invoke; RLS remains closed even with accidental read grants", async () => {
       const denied = await connect();
       try {
         for (const role of ["anon", "authenticated"]) {
           await denied.query(`set role ${role}`);
           await denied.query("select set_config('request.jwt.claims', '{\"role\":\"authenticated\",\"user_metadata\":{\"role\":\"owner\"}}', false)");
-          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events"]) {
+          for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "job_delivery_status", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events", "content_revisions", "content_publications"]) {
             await rejectsSql(denied, `select * from inquiry_private.${table}`, [], "42501");
             await rejectsSql(denied, `delete from inquiry_private.${table}`, [], "42501");
           }
@@ -504,11 +559,16 @@ test("real PostgreSQL persistence foundation", { timeout: 120_000 }, async (t) =
           await rejectsSql(denied, "select public.staff_get_inquiry($1,$1)", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_set_inquiry_status($1,'x',$1,1,'resolved')", [randomUUID()], "42501");
           await rejectsSql(denied, "select public.staff_add_inquiry_note($1,'x',$1,'y')", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.published_content()", [], "42501");
+          await rejectsSql(denied, "select public.staff_content_state($1)", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.staff_content_revision($1,1)", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.staff_save_content_draft($1,'x',null,'{}')", [randomUUID()], "42501");
+          await rejectsSql(denied, "select public.staff_publish_content($1,'x',1)", [randomUUID()], "42501");
           await denied.query("reset role");
         }
         // Temporary test-only grants demonstrate RLS independently from missing privileges.
         await admin.query("begin; grant usage on schema inquiry_private to authenticated; grant select on all tables in schema inquiry_private to authenticated; set local role authenticated");
-        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events"]) {
+        for (const table of ["inquiries", "submission_keys", "notification_jobs", "delivery_events", "rate_limit_hits", "staff_members", "inquiry_notes", "audit_events", "content_revisions", "content_publications"]) {
           assert.equal((await admin.query(`select * from inquiry_private.${table}`)).rowCount, 0);
         }
         await admin.query("rollback");

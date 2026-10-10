@@ -1,3 +1,4 @@
+import type { BanquetTier } from "@/lib/data/private-events";
 import { parseContactInput } from "./inquiries/contact-input";
 import type { checkContactLimit } from "./inquiries/abuse-limit";
 import type { Configuration, recordContactInquiry } from "./inquiries/persistence";
@@ -9,6 +10,8 @@ export type ContactDependencies = {
   limit: typeof checkContactLimit;
   record: typeof recordContactInquiry;
   logError: (code: string) => void;
+  /** Packages guests can ask about; defaults to the built-in list. */
+  packages?: () => Promise<readonly BanquetTier[]>;
 };
 
 function reply(status: number, body: Record<string, unknown>, headers: Record<string, string> = {}) {
@@ -19,7 +22,13 @@ function reply(status: number, body: Record<string, unknown>, headers: Record<st
  * Email is sent later by the notification worker (src/app/api/cron/notifications).
  */
 export async function handleContact(request: Request, dependencies: ContactDependencies): Promise<Response> {
-  const input = await parseContactInput(request);
+  let input: Awaited<ReturnType<typeof parseContactInput>>;
+  try { input = await parseContactInput(request, dependencies.packages); }
+  catch {
+    // Only the package list can fail here (published content unreadable).
+    dependencies.logError("contact_content_unavailable");
+    return reply(503, { error: "The message could not be confirmed. Please try again or call us." });
+  }
   if (input.kind === "invalid") return reply(input.status, { error: input.error });
   // Same reply as a recorded inquiry so bots cannot tell they were discarded.
   if (input.kind === "discard") return reply(202, { ok: true });

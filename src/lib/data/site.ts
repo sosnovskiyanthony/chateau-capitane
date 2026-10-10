@@ -52,6 +52,8 @@ export const site = {
 
   email: "chateaudecapitaine4@gmail.com",
 
+  /** Hours and lunch price here (and menus/packages in menu.ts, private-events.ts) are the built-in content:
+   * shown until staff publish edits at /admin/content. Pages read them through getSiteContent(). */
   hours: {
     dining: {
       days: ["Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],

@@ -1,4 +1,4 @@
-import { getPrivateEventTiers, packageLabel } from "@/lib/data/private-events";
+import { getPrivateEventTiers, packageLabel, type BanquetTier } from "@/lib/data/private-events";
 
 const MAX_BODY_BYTES = 32 * 1024;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -23,8 +23,8 @@ export type NormalizedInquiry = Readonly<{
 export const UNDECIDED_EVENT = "undecided";
 
 /** Snapshot label for a published package, or null when the ID is not offered. */
-function snapshotPackage(id: string): string | null {
-  const tier = getPrivateEventTiers().find((candidate) => candidate.id === id);
+function snapshotPackage(tiers: readonly BanquetTier[], id: string): string | null {
+  const tier = tiers.find((candidate) => candidate.id === id);
   return tier ? packageLabel(tier) : null;
 }
 
@@ -73,7 +73,10 @@ function isCalendarDate(value: string): boolean {
 }
 
 /** Reads the request once; only valid results contain an inquiry. */
-export async function parseContactInput(request: Request): Promise<ContactInputResult> {
+/** `packages` loads the packages guests can currently ask about (the published content in the route). */
+export async function parseContactInput(
+  request: Request, packages: () => Promise<readonly BanquetTier[]> = async () => getPrivateEventTiers(),
+): Promise<ContactInputResult> {
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (contentType !== "application/json") return invalid(415, { error: "Please submit the form as JSON." });
   const submissionKey = request.headers.get("Idempotency-Key");
@@ -98,7 +101,7 @@ export async function parseContactInput(request: Request): Promise<ContactInputR
   }
   const text = (key: (typeof fields)[number]) => typeof input[key] === "string" ? input[key].trim() : "";
   const event = text("event");
-  const eventPackage = event && event !== UNDECIDED_EVENT ? snapshotPackage(event) : "";
+  const eventPackage = event && event !== UNDECIDED_EVENT ? snapshotPackage(await packages(), event) : "";
   if (eventPackage === null) return invalid(400, { error: "Please check the form and try again." });
   const enquiry: NormalizedInquiry = {
     name: text("name").replace(/\s+/g, " "), email: text("email"), phone: text("phone"),

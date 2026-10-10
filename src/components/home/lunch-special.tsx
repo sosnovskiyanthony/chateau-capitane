@@ -1,8 +1,8 @@
 import { Container } from "@/components/layout/container";
 import { CtaLink } from "@/components/ui/cta-link";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { getLunchSpecialCourses } from "@/lib/data/menu";
-import { formatHours, site } from "@/lib/data/site";
+import { formatHours } from "@/lib/data/site";
+import { getSiteContent } from "@/lib/server/content/content";
 
 function summarize(options: string[]): string {
   const shown = options.slice(0, 3).join(", ");
@@ -14,8 +14,8 @@ function summarize(options: string[]): string {
  * Framed like a printed carte: the one place on the site with brass rules, and
  * so the one place course labels stay in gold serif.
  */
-export function LunchSpecial() {
-  const courses = getLunchSpecialCourses();
+export async function LunchSpecial() {
+  const { hours, lunchCourses: courses, lunchSpecialPrice } = await getSiteContent();
 
   return (
     <section>
@@ -26,11 +26,11 @@ export function LunchSpecial() {
             <h2 className="mt-5 font-serif text-4xl leading-display tracking-tight text-ivory sm:text-5xl">
               Three courses for{" "}
               <span className="italic text-gold">
-                ${site.lunchSpecialPrice}
+                ${lunchSpecialPrice}
               </span>
             </h2>
             <p className="mt-5 text-ivory-muted">
-              {formatHours(site.hours.lunchSpecial)}. One from each course.
+              {formatHours(hours.lunchSpecial)}. One from each course.
               {" "}Beverages not included.
             </p>
 

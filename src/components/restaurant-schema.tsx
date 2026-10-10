@@ -1,5 +1,6 @@
 import { site, type OpeningHours } from "@/lib/data/site";
 import { shareImage } from "@/lib/metadata";
+import { getLayoutContent } from "@/lib/server/content/content";
 
 function toSpecification(hours: OpeningHours) {
   return {
@@ -11,10 +12,11 @@ function toSpecification(hours: OpeningHours) {
 }
 
 /**
- * Restaurant structured data, sourced from `site.ts` so the address, phone,
- * and hours can never drift from what the page renders.
+ * Restaurant structured data: address and phone from `site.ts`, hours from the
+ * published content, the same sources the pages render.
  */
-export function RestaurantSchema() {
+export async function RestaurantSchema() {
+  const { hours } = await getLayoutContent();
   const schema = {
     "@context": "https://schema.org",
     "@type": "Restaurant",
@@ -45,7 +47,7 @@ export function RestaurantSchema() {
     image: `${site.url}${shareImage.url}`,
     logo: `${site.url}/apple-icon`,
     // Lunch-special hours fall inside dining hours; listing them here would read as separate opening hours.
-    openingHoursSpecification: [toSpecification(site.hours.dining)],
+    openingHoursSpecification: [toSpecification(hours.dining)],
     sameAs: [site.social.facebook, site.social.instagram, site.social.yelp],
     hasMap: site.mapLinkUrl,
   };

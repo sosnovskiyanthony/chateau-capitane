@@ -4,6 +4,7 @@ import { Container } from "@/components/layout/container";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { footerLinks, formatHours, navLinks, site } from "@/lib/data/site";
+import { getLayoutContent } from "@/lib/server/content/content";
 
 const socialLinks = [
   { href: site.social.facebook, label: "Facebook" },
@@ -14,7 +15,8 @@ const socialLinks = [
 const linkClasses =
   "inline-flex min-h-9 items-center text-ivory-muted transition-colors hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 
-export function Footer() {
+export async function Footer() {
+  const { hours } = await getLayoutContent();
   return (
     <footer className="border-t border-gold/20 bg-ink-950">
       <Container className="py-16 md:py-20">
@@ -46,11 +48,11 @@ export function Footer() {
             <dl className="mt-5 space-y-3 text-sm leading-6 text-ivory-muted">
               <div>
                 <dt className="text-ivory">Dining</dt>
-                <dd>{formatHours(site.hours.dining)}</dd>
+                <dd>{formatHours(hours.dining)}</dd>
               </div>
               <div>
                 <dt className="text-ivory">Lunch special</dt>
-                <dd>{formatHours(site.hours.lunchSpecial)}</dd>
+                <dd>{formatHours(hours.lunchSpecial)}</dd>
               </div>
             </dl>
           </div>

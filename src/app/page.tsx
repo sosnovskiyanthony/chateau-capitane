@@ -10,11 +10,15 @@ import { RestaurantSchema } from "@/components/restaurant-schema";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { site } from "@/lib/data/site";
 import { pageMetadata } from "@/lib/metadata";
+import { getSiteContent } from "@/lib/server/content/content";
 
-export const metadata: Metadata = pageMetadata({
-  description: `${site.name}: seafood, Russian-style banquets, and a three-course $${site.lunchSpecialPrice} weekday lunch special on Coney Island Avenue, Brooklyn.`,
-  path: "/",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const { lunchSpecialPrice } = await getSiteContent();
+  return pageMetadata({
+    description: `${site.name}: seafood, Russian-style banquets, and a three-course $${lunchSpecialPrice} weekday lunch special on Coney Island Avenue, Brooklyn.`,
+    path: "/",
+  });
+}
 
 export default function Home() {
   return (

@@ -6,9 +6,10 @@ import { MapEmbed } from "@/components/contact/map-embed";
 import { Container } from "@/components/layout/container";
 import { PageHeader } from "@/components/ui/page-header";
 import { BookCta } from "@/components/ui/book-cta";
-import { getPrivateEventTiers, packageLabel } from "@/lib/data/private-events";
+import { packageLabel } from "@/lib/data/private-events";
 import { site } from "@/lib/data/site";
 import { pageMetadata } from "@/lib/metadata";
+import { getSiteContent } from "@/lib/server/content/content";
 
 export const metadata: Metadata = pageMetadata({
   title: "Reservations & Directions, Brooklyn",
@@ -16,7 +17,8 @@ export const metadata: Metadata = pageMetadata({
   path: "/contact",
 });
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const { packages } = await getSiteContent();
   return (
     <Container className="pb-20 pt-14 md:pb-28 md:pt-20">
       <PageHeader
@@ -39,7 +41,7 @@ export default function ContactPage() {
           </h2>
           <div className="mt-8">
             <ContactForm
-              packages={getPrivateEventTiers().map((tier) => ({ id: tier.id, label: packageLabel(tier) }))}
+              packages={packages.map((tier) => ({ id: tier.id, label: packageLabel(tier) }))}
             />
           </div>
         </div>
