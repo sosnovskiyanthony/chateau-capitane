@@ -1,37 +1,26 @@
 import { Container } from "@/components/layout/container";
 import { PlaceholderImage } from "@/components/ui/placeholder-image";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { getDictionary } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/get-locale";
 
-const [featured, ...others] = [
-  {
-    name: "Roasted duck in fruit sauce",
-    note: "Roasted and sauced with dried fruit. It anchors the $140 banquet table too.",
-    photo: "Roasted duck carved on a platter",
-    src: "/photos/roasted-duck.jpg",
-  },
-  {
-    name: "Chalakhach chicken tabaka",
-    note: "Chicken pressed flat and pan-fried until the skin crisps.",
-    photo: "Chicken tabaka pressed flat in a pan",
-    src: "/photos/chicken-tabaka.jpg",
-  },
-  {
-    name: "Pickled tomatoes",
-    note: "Russian-style pickled tomatoes, served cold.",
-    photo: "Pickled tomatoes on a serving plate",
-    src: "/photos/mixed-pickles.jpg",
-  },
+const photos = [
+  "/photos/roasted-duck.jpg",
+  "/photos/chicken-tabaka.jpg",
+  "/photos/mixed-pickles.jpg",
 ];
 
-export function SignatureDishes() {
+export async function SignatureDishes() {
+  const t = getDictionary(await getLocale()).home.signature;
+  const [featured, ...others] = t.dishes.map((dish, index) => ({ ...dish, src: photos[index] }));
   return (
     <section>
       <Container className="py-20 md:py-24">
         <SectionHeading
-          eyebrow="Signature dishes"
-          intro="Three of Chef Alik’s favorites, still on his son’s menu."
+          eyebrow={t.eyebrow}
+          intro={t.intro}
         >
-          What the family cooks
+          {t.title}
         </SectionHeading>
 
         <ul className="mt-14 grid gap-x-8 gap-y-14 md:grid-cols-12 md:gap-y-12">

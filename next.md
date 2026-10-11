@@ -1,6 +1,6 @@
 # Next backend session
 
-Updated: 2026-10-10. Canonical rolling handoff.
+Updated: 2026-10-11. Canonical rolling handoff.
 
 ## Owner to-do list (deferred; nothing here blocks local work)
 
@@ -13,6 +13,11 @@ SEO (done 2026-10-10: titles/descriptions, hero label, contact FAQ, schema; see 
 4. Google Business Profile: primary category Russian restaurant, add Seafood restaurant and Banquet hall, one exact spelling of the name everywhere (site, Yelp, OpenTable use different spellings).
 5. Confirm schema price range ($$$) and whether to add the restaurant email to schema.
 6. Real photos with provenance for the About page; short descriptions for well-known dishes on the menu (owner wording).
+
+Russian version (done 2026-10-11, all public pages at `/ru/...`, language button in the header). Still needs the owner:
+1. A native Russian speaker should read it: the translations were written by me. Check names (Стэнли, Алик, "Шеф Стэн"), the "Звонок" button label, dish names and the banquet wording.
+2. Dishes or banquet text that staff add or edit in `/admin/content` show in English on the Russian pages until a Russian line is added to `src/lib/i18n/content-ru.ts` (ask me; staff cannot enter Russian yet).
+3. Guest testimonials and the social share picture stay English on purpose (real quotes; the picture has English text).
 
 ## Objective and starting task
 

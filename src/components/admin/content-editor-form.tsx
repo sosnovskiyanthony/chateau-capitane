@@ -2,8 +2,8 @@
 
 import { startTransition, useActionState, type ReactNode } from "react";
 
-import { saveSection } from "@/app/admin/content/actions";
-import { ctaClassName } from "@/components/ui/cta-link";
+import { saveSection } from "@/app/[lang]/admin/content/actions";
+import { ctaClassName } from "@/components/ui/cta-class";
 
 /** Submits without React's automatic form reset, so a refused save keeps every typed edit on screen.
  * Without JavaScript the plain form action still works.

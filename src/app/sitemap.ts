@@ -3,6 +3,7 @@ import type { MetadataRoute } from "next";
 import { hasGalleryPhotos } from "@/lib/data/gallery";
 import { getLayoutContent } from "@/lib/server/content/content";
 import { footerLinks, navLinks, site } from "@/lib/data/site";
+import { localePath, locales } from "@/lib/i18n/locales";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { gallery } = await getLayoutContent();
@@ -11,12 +12,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     (link) => link.href !== "/gallery" || hasGalleryPhotos(gallery),
   );
 
-  return [
-    { url: site.url, changeFrequency: "monthly", priority: 1 },
-    ...links.map((link) => ({
-      url: `${site.url}${link.href}`,
+  const paths = ["/", ...links.map((link) => link.href)];
+
+  // One entry per language, each listing the other as its alternate.
+  return paths.flatMap((path) =>
+    locales.map((locale) => ({
+      url: `${site.url}${localePath(locale, path) === "/" ? "" : localePath(locale, path)}`,
       changeFrequency: "monthly" as const,
-      priority: link.href === "/menu" ? 0.9 : 0.7,
+      priority: path === "/" ? 1 : path === "/menu" ? 0.9 : 0.7,
+      alternates: {
+        languages: Object.fromEntries(
+          locales.map((code) => [code, `${site.url}${localePath(code, path) === "/" ? "" : localePath(code, path)}`]),
+        ),
+      },
     })),
-  ];
+  );
 }

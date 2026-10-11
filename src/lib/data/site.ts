@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/i18n/locales";
+
 export type Weekday =
   | "Monday"
   | "Tuesday"
@@ -101,18 +103,30 @@ export const footerLinks = [
   { href: "/testimonials", label: "Testimonials" },
 ] as const;
 
-const SHORT_DAY: Record<Weekday, string> = {
-  Monday: "Mon",
-  Tuesday: "Tue",
-  Wednesday: "Wed",
-  Thursday: "Thu",
-  Friday: "Fri",
-  Saturday: "Sat",
-  Sunday: "Sun",
+const SHORT_DAY: Record<Locale, Record<Weekday, string>> = {
+  en: {
+    Monday: "Mon",
+    Tuesday: "Tue",
+    Wednesday: "Wed",
+    Thursday: "Thu",
+    Friday: "Fri",
+    Saturday: "Sat",
+    Sunday: "Sun",
+  },
+  ru: {
+    Monday: "Пн",
+    Tuesday: "Вт",
+    Wednesday: "Ср",
+    Thursday: "Чт",
+    Friday: "Пт",
+    Saturday: "Сб",
+    Sunday: "Вс",
+  },
 };
 
-function formatTime(time: string): string {
+function formatTime(time: string, locale: Locale): string {
   const [rawHour, rawMinute] = time.split(":").map(Number);
+  if (locale === "ru") return `${rawHour}:${String(rawMinute).padStart(2, "0")}`;
   const period = rawHour >= 12 ? "pm" : "am";
   const hour = rawHour % 12 || 12;
   return rawMinute === 0
@@ -120,10 +134,12 @@ function formatTime(time: string): string {
     : `${hour}:${String(rawMinute).padStart(2, "0")}${period}`;
 }
 
-/** "Wed to Sun, 11am to 11pm" */
-export function formatHours(hours: OpeningHours): string {
-  const first = SHORT_DAY[hours.days[0]];
-  const last = SHORT_DAY[hours.days[hours.days.length - 1]];
-  const range = hours.days.length === 1 ? first : `${first} to ${last}`;
-  return `${range}, ${formatTime(hours.opens)} to ${formatTime(hours.closes)}`;
+/** "Wed to Sun, 11am to 11pm", or in Russian "Ср–Вс, 11:00–23:00" */
+export function formatHours(hours: OpeningHours, locale: Locale = "en"): string {
+  const days = SHORT_DAY[locale];
+  const first = days[hours.days[0]];
+  const last = days[hours.days[hours.days.length - 1]];
+  const join = locale === "ru" ? "–" : " to ";
+  const range = hours.days.length === 1 ? first : `${first}${join}${last}`;
+  return `${range}, ${formatTime(hours.opens, locale)}${join}${formatTime(hours.closes, locale)}`;
 }

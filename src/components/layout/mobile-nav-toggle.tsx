@@ -2,18 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { BookCta } from "@/components/ui/book-cta";
 import { focusRing } from "@/components/ui/styles";
 import type { NavLink } from "@/lib/data/site";
 
 export function MobileNavToggle({
   links,
   phone,
+  labels,
+  book,
 }: {
   links: readonly NavLink[];
   phone: { display: string; href: string };
+  labels: { open: string; close: string; nav: string; call: string };
+  /** The Book now button, rendered by the server so its text is in the page's language. */
+  book: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -39,7 +43,7 @@ export function MobileNavToggle({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls="mobile-nav"
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-label={open ? labels.close : labels.open}
         className={`-mr-2 inline-flex size-11 items-center justify-center text-ivory ${focusRing}`}
       >
         <svg
@@ -72,8 +76,8 @@ export function MobileNavToggle({
         hidden={!open}
         className="absolute inset-x-0 top-full border-b border-gold/25 bg-ink-900"
       >
-        <nav aria-label="Mobile" className="px-6 pb-6 pt-2 sm:px-8">
-          <BookCta className="mb-2 mt-4 w-full" />
+        <nav aria-label={labels.nav} className="px-6 pb-6 pt-2 sm:px-8">
+          {book}
           <ul className="flex flex-col">
             {links.map((link) => {
               const current = pathname === link.href;
@@ -97,7 +101,7 @@ export function MobileNavToggle({
             href={phone.href}
             className={`mt-4 inline-flex min-h-11 items-center font-semibold text-gold ${focusRing}`}
           >
-            Call {phone.display}
+            {labels.call} {phone.display}
           </a>
         </nav>
       </div>

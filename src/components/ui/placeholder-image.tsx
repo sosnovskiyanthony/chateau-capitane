@@ -1,11 +1,14 @@
 import Image from "next/image";
 
+import { getDictionary } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/get-locale";
+
 /**
  * A photo slot. Renders the real photo once `src` is set; until then, holds
  * the exact aspect ratio the photo will occupy so nothing shifts when it
  * arrives.
  */
-export function PlaceholderImage({
+export async function PlaceholderImage({
   label,
   aspect = "aspect-4/3",
   className = "",
@@ -20,6 +23,8 @@ export function PlaceholderImage({
   /** For a photo large enough to be the page's LCP element, e.g. a hero or a featured card. */
   priority?: boolean;
 }) {
+  const t = getDictionary(await getLocale());
+
   if (src) {
     return (
       <Image
@@ -38,7 +43,7 @@ export function PlaceholderImage({
   return (
     <div
       role="img"
-      aria-label={`Photo to come: ${label}`}
+      aria-label={t.photoToCome(label)}
       className={`relative flex items-end bg-ink-800 ${aspect} ${className}`}
     >
       <span

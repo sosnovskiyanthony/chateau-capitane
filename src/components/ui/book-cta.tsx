@@ -1,13 +1,16 @@
-import { ctaClassName, type CtaVariant } from "@/components/ui/cta-link";
+import { ctaClassName, type CtaVariant } from "@/components/ui/cta-class";
 import { site } from "@/lib/data/site";
+import { getDictionary } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/get-locale";
 
-export function BookCta({
+export async function BookCta({
   variant = "primary",
   className = "",
 }: {
   variant?: CtaVariant;
   className?: string;
 }) {
+  const t = getDictionary(await getLocale());
   return (
     <a
       href={site.reservationUrl}
@@ -15,8 +18,8 @@ export function BookCta({
       rel="noopener noreferrer"
       className={`${ctaClassName(variant)} ${className}`}
     >
-      Book now
-      <span className="sr-only"> on OpenTable (opens in a new tab)</span>
+      {t.cta.bookNow}
+      <span className="sr-only">{t.cta.bookSr}</span>
     </a>
   );
 }

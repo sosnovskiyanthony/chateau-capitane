@@ -2,8 +2,8 @@
 
 import { useActionState, type ReactNode } from "react";
 
-import { login, setPasswordFromLink, type FormState } from "@/app/admin/actions";
-import { ctaClassName } from "@/components/ui/cta-link";
+import { login, setPasswordFromLink, type FormState } from "@/app/[lang]/admin/actions";
+import { ctaClassName } from "@/components/ui/cta-class";
 import { fieldClasses, labelClasses } from "@/components/ui/styles";
 
 function Field({ name, label, type, autoComplete }: { name: string; label: string; type: string; autoComplete: string }) {

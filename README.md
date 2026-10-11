@@ -22,16 +22,20 @@ npm run lint
 
 ## Pages
 
+English is served at the site root and Russian under `/ru` (for example `/menu` and `/ru/menu`). Both come from one set of pages in `src/app/[lang]/`; `src/proxy.ts` rewrites English addresses to `/en/...` and redirects a visible `/en/...` back to the root. Fixed wording lives in `src/lib/i18n/en.ts` and `ru.ts` (same keys, enforced by the type); menu, banquet and gallery text is translated by exact English string in `src/lib/i18n/content-ru.ts` and falls back to English when a string has no entry. The language button is `src/components/layout/language-switch.tsx`.
+
 | Route | File |
 |---|---|
-| `/` | `src/app/page.tsx` |
-| `/menu` | `src/app/menu/page.tsx` |
-| `/private-events` | `src/app/private-events/page.tsx` |
-| `/gallery` | `src/app/gallery/page.tsx` |
-| `/about` | `src/app/about/page.tsx` |
-| `/contact` | `src/app/contact/page.tsx` |
-| `/testimonials` | `src/app/testimonials/page.tsx` |
-| 404 | `src/app/not-found.tsx` |
+| `/`, `/ru` | `src/app/[lang]/page.tsx` |
+| `/menu` | `src/app/[lang]/menu/page.tsx` |
+| `/private-events` | `src/app/[lang]/private-events/page.tsx` |
+| `/gallery` | `src/app/[lang]/gallery/page.tsx` |
+| `/about` | `src/app/[lang]/about/page.tsx` |
+| `/contact` | `src/app/[lang]/contact/page.tsx` |
+| `/testimonials` | `src/app/[lang]/testimonials/page.tsx` |
+| 404 | `src/app/[lang]/not-found.tsx` |
+
+Staff pages (`/admin`) stay English only; `/ru/admin` is a 404.
 
 ## Editing content
 

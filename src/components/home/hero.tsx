@@ -3,8 +3,11 @@ import { BookCta } from "@/components/ui/book-cta";
 import { CallCta } from "@/components/ui/call-cta";
 import { ChartRose } from "@/components/ui/chart-rose";
 import { CtaLink } from "@/components/ui/cta-link";
+import { getDictionary } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/get-locale";
 
-export function Hero() {
+export async function Hero() {
+  const t = getDictionary(await getLocale());
   return (
     <section className="relative isolate overflow-hidden">
       <div
@@ -18,22 +21,20 @@ export function Hero() {
         <div className="max-w-3xl">
           <h1 className="font-serif text-5xl leading-display tracking-tight text-ivory sm:text-6xl lg:text-7xl">
             <span className="mb-8 block font-sans text-xs font-semibold uppercase tracking-caps text-gold motion-safe:animate-rise">
-              Russian &amp; seafood restaurant, Coney Island Avenue, Brooklyn
+              {t.home.eyebrow}
             </span>
-            A father&rsquo;s recipes,{" "}
+            {t.home.titleLine1}{" "}
             <span className="block italic text-gold">
-              a son&rsquo;s kitchen.
+              {t.home.titleLine2}
             </span>
           </h1>
           <p className="mt-8 max-w-xl text-lg leading-8 text-ivory-muted">
-            Chef Stanley learned to cook in his father Alik&rsquo;s kitchen.
-            Oysters and caviar, grilled fish, pelmeni and borscht, Russian
-            banquets, and a weekday lunch special.
+            {t.home.intro}
           </p>
           <div className="mt-12 flex flex-wrap gap-3">
             <BookCta />
             <CallCta variant="secondary" />
-            <CtaLink href="/menu" variant="secondary">See the menu</CtaLink>
+            <CtaLink href="/menu" variant="secondary">{t.cta.seeMenu}</CtaLink>
           </div>
         </div>
       </Container>

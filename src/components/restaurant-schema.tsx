@@ -1,4 +1,7 @@
 import { site, type OpeningHours } from "@/lib/data/site";
+import { getDictionary } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/get-locale";
+import { localePath } from "@/lib/i18n/locales";
 import { getLayoutContent } from "@/lib/server/content/content";
 
 const photos = ["entrance-night.jpg", "red-caviar.jpg", "roasted-duck.jpg", "lobster-platter-instagram.jpg"];
@@ -17,6 +20,8 @@ function toSpecification(hours: OpeningHours) {
  * published content, the same sources the pages render.
  */
 export async function RestaurantSchema() {
+  const locale = await getLocale();
+  const t = getDictionary(locale).schema;
   const { hours, lunchSpecialPrice } = await getLayoutContent();
   const schema = {
     "@context": "https://schema.org",
@@ -24,12 +29,13 @@ export async function RestaurantSchema() {
     "@id": `${site.url}/#restaurant`,
     name: site.name,
     alternateName: ["Chateau Capitaine", "Chateau De Capitaine"],
-    url: site.url,
-    description: site.description,
+    url: `${site.url}${localePath(locale, "/")}`,
+    inLanguage: locale,
+    description: t.description,
     telephone: site.phone.international,
     servesCuisine: ["Russian", "Seafood", "Eastern European"],
     priceRange: "$$$",
-    hasMenu: `${site.url}/menu`,
+    hasMenu: `${site.url}${localePath(locale, "/menu")}`,
     acceptsReservations: site.reservationUrl,
     potentialAction: {
       "@type": "ReserveAction",
@@ -41,7 +47,7 @@ export async function RestaurantSchema() {
           "https://schema.org/MobileWebPlatform",
         ],
       },
-      result: { "@type": "Reservation", name: `Reserve a table at ${site.name}` },
+      result: { "@type": "Reservation", name: t.reserve(site.name) },
     },
     address: {
       "@type": "PostalAddress",
@@ -62,7 +68,7 @@ export async function RestaurantSchema() {
     openingHoursSpecification: [toSpecification(hours.dining)],
     makesOffer: {
       "@type": "Offer",
-      name: "Weekday three-course lunch special (soup, salad, entrée; beverages not included)",
+      name: t.lunchOffer,
       price: lunchSpecialPrice.toFixed(2),
       priceCurrency: "USD",
       hoursAvailable: toSpecification(hours.lunchSpecial),

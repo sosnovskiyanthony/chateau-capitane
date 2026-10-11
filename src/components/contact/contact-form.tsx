@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { ctaClassName } from "@/components/ui/cta-link";
+import { ctaClassName } from "@/components/ui/cta-class";
 import { fieldClasses, focusRing, labelClasses } from "@/components/ui/styles";
 import { site } from "@/lib/data/site";
+import type { Dictionary } from "@/lib/i18n/en";
 
 const optionalClasses = "font-normal normal-case tracking-normal text-ivory-muted";
 
@@ -14,13 +15,14 @@ type Status = "idle" | "sending" | "sent" | "invalid" | "failed";
 function Field({
   id,
   label,
-  optional = false,
+  optional,
   wide = false,
   children,
 }: {
   id: string;
   label: string;
-  optional?: boolean;
+  /** The "(optional)" hint in the page's language; leave out for a required field. */
+  optional?: string;
   wide?: boolean;
   children: ReactNode;
 }) {
@@ -31,7 +33,7 @@ function Field({
         {optional ? (
           <>
             {" "}
-            <span className={optionalClasses}>(optional)</span>
+            <span className={optionalClasses}>{optional}</span>
           </>
         ) : null}
       </label>
@@ -41,7 +43,13 @@ function Field({
 }
 
 /** Event packages as { id, label } from the server page, so menus stay out of the browser bundle. */
-export function ContactForm({ packages }: { packages: { id: string; label: string }[] }) {
+export function ContactForm({
+  packages,
+  strings: s,
+}: {
+  packages: { id: string; label: string }[];
+  strings: Dictionary["contact"]["form"];
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const sending = useRef(false);
   const submission = useRef<{ body: string; key: string } | null>(null);
@@ -100,11 +108,11 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
   return (
     <form onSubmit={handleSubmit} className="max-w-xl">
       <div className="grid gap-x-6 gap-y-7 sm:grid-cols-2">
-        <Field id="name" label="Name" wide>
+        <Field id="name" label={s.name} wide>
           <input id="name" name="name" type="text" required autoComplete="name" className={fieldClasses} />
         </Field>
 
-        <Field id="email" label="Email">
+        <Field id="email" label={s.email}>
           <input
             id="email"
             name="email"
@@ -116,14 +124,14 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
           />
         </Field>
 
-        <Field id="phone" label="Phone" optional>
+        <Field id="phone" label={s.phone} optional={s.optional}>
           <input id="phone" name="phone" type="tel" autoComplete="tel" className={fieldClasses} />
         </Field>
 
-        <Field id="event" label="Private event" optional wide>
+        <Field id="event" label={s.event} optional={s.optional} wide>
           <select id="event" name="event" ref={eventField} defaultValue="" className={fieldClasses}>
-            <option value="">No, a general message</option>
-            <option value="undecided">Yes, package not chosen yet</option>
+            <option value="">{s.eventNone}</option>
+            <option value="undecided">{s.eventUndecided}</option>
             {packages.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
@@ -132,11 +140,11 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
           </select>
         </Field>
 
-        <Field id="date" label="Date" optional>
+        <Field id="date" label={s.date} optional={s.optional}>
           <input id="date" name="date" type="date" autoComplete="off" className={fieldClasses} />
         </Field>
 
-        <Field id="guests" label="Guests" optional>
+        <Field id="guests" label={s.guests} optional={s.optional}>
           <input
             id="guests"
             name="guests"
@@ -148,7 +156,7 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
           />
         </Field>
 
-        <Field id="message" label="What can we help with?" wide>
+        <Field id="message" label={s.message} wide>
           <textarea id="message" name="message" required rows={5} className={fieldClasses} />
         </Field>
 
@@ -170,26 +178,26 @@ export function ContactForm({ packages }: { packages: { id: string; label: strin
         disabled={status === "sending"}
         className={`mt-10 disabled:cursor-wait disabled:opacity-70 ${ctaClassName("primary")}`}
       >
-        {status === "sending" ? "Sending…" : "Send message"}
+        {status === "sending" ? s.sending : s.send}
       </button>
 
       <p aria-live="polite" className="mt-4 text-sm leading-6 text-ivory-muted">
         {status === "sent"
-          ? "Thank you. Your message has been recorded for our team to follow up, and we’ll reply by email. This does not confirm a booking."
+          ? s.sent
           : null}
         {status === "invalid"
-          ? "Some details didn’t look right. Please check the form and try again."
+          ? s.invalid
           : null}
         {status === "failed" ? (
           <>
-            Your message didn&rsquo;t go through. Please call us at{" "}
+            {s.failedBefore}
             <a
               href={site.phone.href}
               className={`font-semibold tabular-nums text-gold hover:text-gold-bright ${focusRing}`}
             >
               {site.phone.display}
-            </a>{" "}
-            and we&rsquo;ll sort it out.
+            </a>
+            {s.failedAfter}
           </>
         ) : null}
       </p>

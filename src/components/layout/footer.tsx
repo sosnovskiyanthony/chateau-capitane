@@ -3,7 +3,10 @@ import Link from "next/link";
 import { Container } from "@/components/layout/container";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { LogoMark } from "@/components/ui/logo-mark";
-import { footerLinks, formatHours, navLinks, site } from "@/lib/data/site";
+import { formatHours, site } from "@/lib/data/site";
+import { getDictionary } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/get-locale";
+import { localizedNav } from "@/lib/i18n/nav";
 import { getLayoutContent } from "@/lib/server/content/content";
 
 const socialLinks = [
@@ -16,7 +19,10 @@ const linkClasses =
   "inline-flex min-h-9 items-center text-ivory-muted transition-colors hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 
 export async function Footer() {
+  const locale = await getLocale();
+  const t = getDictionary(locale);
   const { hours } = await getLayoutContent();
+  const { main, footer } = localizedNav(locale);
   return (
     <footer className="border-t border-gold/20 bg-ink-950">
       <Container className="py-16 md:py-20">
@@ -44,23 +50,23 @@ export async function Footer() {
           </div>
 
           <div className="lg:col-span-3">
-            <Eyebrow as="h2">Hours</Eyebrow>
+            <Eyebrow as="h2">{t.footer.hours}</Eyebrow>
             <dl className="mt-5 space-y-3 text-sm leading-6 text-ivory-muted">
               <div>
-                <dt className="text-ivory">Dining</dt>
-                <dd>{formatHours(hours.dining)}</dd>
+                <dt className="text-ivory">{t.info.dining}</dt>
+                <dd>{formatHours(hours.dining, locale)}</dd>
               </div>
               <div>
-                <dt className="text-ivory">Lunch special</dt>
-                <dd>{formatHours(hours.lunchSpecial)}</dd>
+                <dt className="text-ivory">{t.info.lunchSpecial}</dt>
+                <dd>{formatHours(hours.lunchSpecial, locale)}</dd>
               </div>
             </dl>
           </div>
 
-          <nav aria-label="Footer" className="sm:col-span-2 lg:col-span-4">
-            <Eyebrow as="h2">Explore</Eyebrow>
+          <nav aria-label={t.aria.footer} className="sm:col-span-2 lg:col-span-4">
+            <Eyebrow as="h2">{t.footer.explore}</Eyebrow>
             <ul className="mt-4 grid grid-cols-2 gap-x-6 text-sm">
-              {[...navLinks, ...footerLinks].map((link) => (
+              {[...main, ...footer].map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className={linkClasses}>
                     {link.label}
@@ -87,7 +93,7 @@ export async function Footer() {
             ))}
           </ul>
           <p className="text-sm text-ivory-muted">
-            © {new Date().getFullYear()} {site.name}
+            {t.footer.copyright(new Date().getFullYear(), site.name)}
           </p>
         </div>
       </Container>

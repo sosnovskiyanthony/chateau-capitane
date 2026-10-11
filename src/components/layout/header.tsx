@@ -6,17 +6,25 @@ import { NavLinks } from "@/components/layout/nav-links";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { BookCta } from "@/components/ui/book-cta";
 import { focusRing } from "@/components/ui/styles";
-import { navLinks, site } from "@/lib/data/site";
+import { LanguageSwitch } from "@/components/layout/language-switch";
+import { site } from "@/lib/data/site";
+import { getDictionary } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/get-locale";
+import { localePath } from "@/lib/i18n/locales";
+import { localizedNav } from "@/lib/i18n/nav";
 
 const [firstWord, ...restWords] = site.name.split(" ");
 
-export function Header() {
+export async function Header() {
+  const locale = await getLocale();
+  const t = getDictionary(locale);
+  const { main: links } = localizedNav(locale);
   return (
     <header className="sticky top-0 z-40 border-b border-gold/25 bg-ink-900/90 backdrop-blur-md">
       <Container>
         <div className="flex h-16 items-center justify-between gap-4 lg:h-20">
           <Link
-            href="/"
+            href={localePath(locale, "/")}
             translate="no"
             className={`flex items-center gap-3 font-serif text-sm uppercase tracking-caps text-ivory sm:text-lg ${focusRing}`}
           >
@@ -32,15 +40,16 @@ export function Header() {
             </span>
           </Link>
 
-          <NavLinks links={navLinks} />
+          <NavLinks links={links} label={t.aria.main} />
 
           <div className="hidden items-center gap-4 lg:flex">
+            <LanguageSwitch other={t.otherLanguage} />
             <a
               href={site.phone.href}
-              aria-label={`Call ${site.phone.display}`}
+              aria-label={t.header.callAria(site.phone.display)}
               className={`inline-flex min-h-11 items-center whitespace-nowrap text-sm font-semibold text-gold ${focusRing}`}
             >
-              <span className="xl:hidden">Call</span>
+              <span className="xl:hidden">{t.header.call}</span>
               <span className="hidden xl:inline">{site.phone.display}</span>
             </a>
             <BookCta className="px-4" />
@@ -49,12 +58,23 @@ export function Header() {
           <div className="flex items-center gap-1 lg:hidden">
             <a
               href={site.phone.href}
-              aria-label={`Call ${site.phone.display}`}
+              aria-label={t.header.callAria(site.phone.display)}
               className={`inline-flex min-h-11 items-center whitespace-nowrap px-2 text-xs font-semibold uppercase tracking-caps text-gold ${focusRing}`}
             >
-              Call
+              {t.header.call}
             </a>
-            <MobileNavToggle links={navLinks} phone={site.phone} />
+            <LanguageSwitch other={t.otherLanguage} />
+            <MobileNavToggle
+              links={links}
+              phone={site.phone}
+              labels={{
+                open: t.aria.openMenu,
+                close: t.aria.closeMenu,
+                nav: t.aria.mobile,
+                call: t.header.call,
+              }}
+              book={<BookCta className="mb-2 mt-4 w-full" />}
+            />
           </div>
         </div>
       </Container>
