@@ -19,6 +19,8 @@ Russian version (done 2026-10-11, all public pages at `/ru/...`, language button
 2. Dishes or banquet text that staff add or edit in `/admin/content` show in English on the Russian pages until a Russian line is added to `src/lib/i18n/content-ru.ts` (ask me; staff cannot enter Russian yet).
 3. Guest testimonials and the social share picture stay English on purpose (real quotes; the picture has English text).
 
+inKind pop-up (added 2026-10-11, `src/components/layout/inkind-popup.tsx`): the inKind script loads on every public page (English and Russian), never on staff pages. inKind decides the offer, text and timing on their side; it shows nothing until they switch it on. Ask Nasima at inKind: does the script need the final domain registered, should it also show on the Russian pages, and is a staging check wanted first. The pop-up collects guest email/phone for marketing under inKind's terms, so the owner should agree to that.
+
 ## Objective and starting task
 
 Claude Code now builds (rules: [CLAUDE.md](CLAUDE.md), evidence: [docs/claude-workflow.md](docs/claude-workflow.md)); Codex reviews later. Follow [the backend roadmap](docs/plans/backend-roadmap.md), **Research → Plan → Build → Verify**. B01 complete; B02a/b committed (`a12f3f0`); dependency security slice done (Next 16.4.0).

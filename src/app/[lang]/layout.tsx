@@ -3,6 +3,7 @@ import { Albert_Sans, Bodoni_Moda } from "next/font/google";
 
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
+import { InkindPopup } from "@/components/layout/inkind-popup";
 import { site } from "@/lib/data/site";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -66,6 +67,7 @@ export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
           {children}
         </main>
         <Footer />
+        <InkindPopup />
       </body>
     </html>
   );
